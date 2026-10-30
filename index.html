@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schach-Assistent & Zug-Analysator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chess.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        boardLight: '#e2e8f0',
+                        boardDark: '#475569',
+                        boardHighlight: 'rgba(16, 185, 129, 0.42)',
+                        boardLastMove: 'rgba(245, 158, 11, 0.35)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Chessboard Layout & Aspect Ratio */
+        .chessboard-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 540px;
+            aspect-ratio: 1 / 1;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .chess-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            border: 3px solid #334155;
+        }
+
+        .square {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.12s ease;
+        }
+
+        .square-light {
+            background-color: #cbd5e1;
+        }
+        .square-dark {
+            background-color: #475569;
+        }
+
+        .square-selected {
+            background-color: rgba(16, 185, 129, 0.65) !important;
+            box-shadow: inset 0 0 0 3px #059669;
+        }
+
+        .square-last-move {
+            background-color: rgba(245, 158, 11, 0.42) !important;
+        }
+
+        .square-check {
+            background: radial-gradient(circle, rgba(239,68,68,0.85) 0%, rgba(220,38,38,0.4) 70%, transparent 100%) !important;
+        }
+
+        /* Legal Move Indicators */
+        .legal-dot {
+            width: 28%;
+            height: 28%;
+            border-radius: 9999px;
+            background-color: rgba(16, 185, 129, 0.75);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+            pointer-events: none;
+            z-index: 15;
+            transition: transform 0.15s ease;
+        }
+        .square:hover .legal-dot {
+            transform: scale(1.25);
+            background-color: rgba(5, 150, 105, 0.95);
+        }
+
+        .legal-capture-ring {
+            position: absolute;
+            inset: 6%;
+            border-radius: 9999px;
+            border: 4px solid rgba(16, 185, 129, 0.85);
+            pointer-events: none;
+            z-index: 15;
+            animation: pulseRing 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulseRing {
+            0%, 100% { transform: scale(0.97); opacity: 0.85; }
+            50% { transform: scale(1.03); opacity: 1; }
+        }
+
+        /* Chess Piece SVG Styling */
+        .chess-piece {
+            width: 84%;
+            height: 84%;
+            z-index: 10;
+            pointer-events: none;
+            filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.45));
+            transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .square:hover .chess-piece {
+            transform: scale(1.06);
+        }
+
+        /* Coordinate Labels on Board */
+        .coord-rank {
+            position: absolute;
+            top: 3px;
+            left: 5px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            line-height: 1;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .coord-file {
+            position: absolute;
+            bottom: 3px;
+            right: 5px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            line-height: 1;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* SVG Overlay for Best Move Arrows */
+        .arrow-overlay {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 25;
+        }
+
+        /* Smooth Eval Bar Transition */
+        .eval-fill {
+            transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1), width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Arrow Pulse Animation */
+        .best-arrow-line {
+            filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-emerald-500 selection:text-white flex flex-col">
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+            <!-- Brand Title -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-900/40">
+                    <i class="fa-solid fa-chess-knight text-white text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white">Schach-Assistent & Analysator</h1>
+                        <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            Live Coach
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400">Eigene & gegnerische Züge eintragen • Sofort beste Zugempfehlung mit Pfeilen</p>
+                </div>
+            </div>
+
+            <!-- Opening & Mode Controls -->
+            <div class="flex items-center flex-wrap gap-2">
+                <!-- Detected Opening Badge -->
+                <div id="openingBadge" class="px-3 py-1.5 rounded-lg bg-slate-800/90 border border-slate-700 text-xs font-medium text-amber-300 flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-amber-400"></i>
+                    <span id="openingNameText">Grundstellung – Bereit für 1. Zug</span>
+                </div>
+
+                <!-- Engine Depth Selector -->
+                <div class="flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700 text-xs">
+                    <span class="px-2 text-slate-400 hidden md:inline">Rechentiefe:</span>
+                    <button onclick="setSearchDepth(2)" id="depthBtn2" class="px-2.5 py-1 rounded-md font-medium text-slate-300 hover:text-white transition">Schnell</button>
+                    <button onclick="setSearchDepth(3)" id="depthBtn3" class="px-2.5 py-1 rounded-md font-semibold bg-emerald-600 text-white shadow">Standard</button>
+                    <button onclick="setSearchDepth(4)" id="depthBtn4" class="px-2.5 py-1 rounded-md font-medium text-slate-300 hover:text-white transition">Tief</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- LEFT / CENTER COLUMN: Interactive Chessboard & Visual Controls (7 Cols on Desktop) -->
+            <div class="lg:col-span-7 flex flex-col items-center bg-slate-900/70 border border-slate-800/90 rounded-2xl p-3 sm:p-5 shadow-xl">
+
+                <!-- Top Player Bar (Opponent / Upper side of board) -->
+                <div class="w-full max-w-[580px] flex items-center justify-between bg-slate-800/70 border border-slate-700/70 rounded-xl px-3.5 py-2 mb-3">
+                    <div class="flex items-center gap-2.5">
+                        <div id="topPlayerDot" class="w-3.5 h-3.5 rounded-full bg-slate-950 border-2 border-slate-400"></div>
+                        <span id="topPlayerLabel" class="font-semibold text-sm text-slate-200">Schwarz</span>
+                        <span id="topTurnBadge" class="hidden px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Am Zug
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div id="topCaptured" class="flex items-center gap-0.5 text-sm min-h-[20px]"></div>
+                        <span id="topMaterialDiff" class="text-xs font-mono font-bold text-emerald-400"></span>
+                    </div>
+                </div>
+
+                <!-- Board + Vertical Evaluation Bar Container -->
+                <div class="w-full max-w-[580px] flex items-center justify-center gap-2.5 sm:gap-3.5">
+
+                    <!-- Vertical Evaluation Bar -->
+                    <div class="flex flex-col items-center self-stretch py-0.5">
+                        <div class="relative w-6 sm:w-7 h-full min-h-[280px] bg-slate-800 rounded-lg overflow-hidden border border-slate-600 shadow-inner flex flex-col">
+                            <!-- Black Portion (Top by default) -->
+                            <div id="evalBarBlack" class="w-full bg-slate-900 eval-fill" style="height: 50%;"></div>
+                            <!-- White Portion (Bottom by default) -->
+                            <div id="evalBarWhite" class="w-full bg-slate-100 eval-fill" style="height: 50%;"></div>
+                            <!-- Center 0.0 Tick Mark -->
+                            <div class="absolute top-1/2 left-0 right-0 h-[2px] bg-emerald-500/70 z-10"></div>
+                            <!-- Score Readout Inside Bar -->
+                            <div id="evalBarText" class="absolute inset-x-0 bottom-1.5 text-center text-[10px] font-mono font-extrabold text-slate-900 z-20 px-0.5 leading-tight">
+                                0.0
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 8x8 Chessboard + SVG Arrow Overlay -->
+                    <div class="chessboard-wrapper" id="boardContainer">
+                        <div id="chessboard" class="chess-grid"></div>
+                        <!-- SVG Overlay for Best Move Arrows -->
+                        <svg id="arrowOverlay" class="arrow-overlay" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+                    </div>
+                </div>
+
+                <!-- Bottom Player Bar (Player / Lower side of board) -->
+                <div class="w-full max-w-[580px] flex items-center justify-between bg-slate-800/70 border border-slate-700/70 rounded-xl px-3.5 py-2 mt-3">
+                    <div class="flex items-center gap-2.5">
+                        <div id="bottomPlayerDot" class="w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-300"></div>
+                        <span id="bottomPlayerLabel" class="font-semibold text-sm text-slate-200">Weiß</span>
+                        <span id="bottomTurnBadge" class="px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Am Zug
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div id="bottomCaptured" class="flex items-center gap-0.5 text-sm min-h-[20px]"></div>
+                        <span id="bottomMaterialDiff" class="text-xs font-mono font-bold text-emerald-400"></span>
+                    </div>
+                </div>
+
+                <!-- Primary Board Action Toolbar -->
+                <div class="w-full max-w-[580px] grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+                    <button onclick="playBestRecommendedMove()" id="btnPlayBest" class="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-lg shadow-emerald-950/60 transition active:scale-95">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Bester Zug</span>
+                    </button>
+
+                    <button onclick="undoLastMove()" id="btnUndo" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>Zug zurück</span>
+                    </button>
+
+                    <button onclick="flipBoardOrientation()" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95">
+                        <i class="fa-solid fa-retweet text-amber-400"></i>
+                        <span>Brett drehen</span>
+                    </button>
+
+                    <button onclick="resetGame()" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-rose-950/60 hover:border-rose-700/60 text-slate-200 border border-slate-700 transition active:scale-95">
+                        <i class="fa-solid fa-trash-can text-rose-400"></i>
+                        <span>Neues Spiel</span>
+                    </button>
+                </div>
+
+                <!-- Helper Hint Banner + Arrow Visibility Toggle -->
+                <div class="w-full max-w-[580px] mt-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs text-slate-400">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-circle-info text-emerald-400"></i>
+                        <span id="interactiveHintText">Klicke auf eine Figur und danach auf das Zielfeld – für deine Züge und die des Gegners.</span>
+                    </div>
+                    <label class="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 font-medium">
+                        <input type="checkbox" id="toggleArrowsCheckbox" checked onchange="toggleArrowsVisibility()" class="rounded bg-slate-800 border-slate-600 text-emerald-500 focus:ring-emerald-500">
+                        <span>Pfeile zeigen</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Best Move Coach, Move Input & History (5 Cols on Desktop) -->
+            <div class="lg:col-span-5 flex flex-col gap-4">
+
+                <!-- PANEL 1: Bot Analysis & Top 3 Move Recommendations -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2.5">
+                            <span class="flex h-3 w-3 relative">
+                                <span id="enginePulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                            </span>
+                            <h2 class="text-base font-bold text-white flex items-center gap-2">
+                                <span>Beste Zug-Empfehlungen</span>
+                            </h2>
+                        </div>
+                        <span id="turnIndicatorPill" class="px-2.5 py-1 rounded-full text-xs font-bold bg-white text-slate-900 shadow">
+                            Für Weiß
+                        </span>
+                    </div>
+
+                    <!-- Strategic Coaching Tip Banner -->
+                    <div id="coachSummaryBox" class="mb-3.5 p-3 rounded-xl bg-gradient-to-r from-emerald-950/70 to-slate-900 border border-emerald-500/30 text-xs sm:text-sm text-emerald-100 leading-relaxed">
+                        Analysiere Stellung...
+                    </div>
+
+                    <!-- Top 3 Recommended Moves List -->
+                    <div id="recommendationsList" class="space-y-2.5">
+                        <!-- Dynamically populated by JS -->
+                    </div>
+                </div>
+
+                <!-- PANEL 2: Move Entry (Text Input + Quick-Click Legal Move Chips) -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-keyboard text-emerald-400"></i>
+                            <span>Zug manuell eintragen (Weiß & Schwarz)</span>
+                        </h3>
+                        <span id="inputTurnHint" class="text-xs text-slate-400">Aktuell: Weiß</span>
+                    </div>
+
+                    <!-- Text Input Form -->
+                    <form onsubmit="handleMoveFormSubmit(event)" class="flex gap-2">
+                        <div class="relative flex-1">
+                            <input
+                                type="text"
+                                id="moveTextInput"
+                                placeholder="z.B. e4, Sf3, Lc4, e2e4, O-O ..."
+                                autocomplete="off"
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono"
+                            />
+                        </div>
+                        <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition flex items-center gap-1.5 shrink-0 shadow">
+                            <i class="fa-solid fa-check"></i>
+                            <span>Eintragen</span>
+                        </button>
+                    </form>
+
+                    <!-- Feedback message for invalid text move -->
+                    <div id="moveInputFeedback" class="hidden mt-2 text-xs font-medium px-3 py-1.5 rounded-lg"></div>
+
+                    <!-- Quick Legal Move Chips ("Schnell-Auswahl") -->
+                    <div class="mt-3.5">
+                        <div class="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+                            <span>Schnell-Auswahl legaler Züge (1 Klick):</span>
+                            <span id="legalMovesCount" class="font-mono text-slate-500">20 Züge</span>
+                        </div>
+                        <div id="legalMovesChips" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 bg-slate-950/60 rounded-xl border border-slate-800/80">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL 3: Move History & Opening Presets -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col">
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-list-ol text-amber-400"></i>
+                            <span>Zugverlauf & Eröffnungs-Vorlagen</span>
+                        </h3>
+                        <button onclick="copyPgnToClipboard()" class="text-xs text-slate-400 hover:text-emerald-400 flex items-center gap-1 transition" title="Zugliste kopieren">
+                            <i class="fa-regular fa-copy"></i>
+                            <span id="copyBtnText">PGN kopieren</span>
+                        </button>
+                    </div>
+
+                    <!-- Quick Opening Starters -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto pb-2 mb-2 border-b border-slate-800 text-xs">
+                        <span class="text-slate-400 shrink-0">Vorlage laden:</span>
+                        <button onclick="loadOpeningPreset(['e4','e5','Nf3','Nc6','Bc4'])" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 shrink-0 transition border border-slate-700">
+                            Italienisch
+                        </button>
+                        <button onclick="loadOpeningPreset(['e4','c5','Nf3','d6'])" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 shrink-0 transition border border-slate-700">
+                            Sizilianisch
+                        </button>
+                        <button onclick="loadOpeningPreset(['d4','d5','Bf4','Nf6','e3'])" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 shrink-0 transition border border-slate-700">
+                            Londoner System
+                        </button>
+                        <button onclick="loadOpeningPreset(['e4','c6','d4','d5'])" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 shrink-0 transition border border-slate-700">
+                            Caro-Kann
+                        </button>
+                        <button onclick="loadOpeningPreset(['d4','d5','c4','e6'])" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 shrink-0 transition border border-slate-700">
+                            Damengambit
+                        </button>
+                    </div>
+
+                    <!-- Move History Table -->
+                    <div id="moveHistoryContainer" class="max-h-40 overflow-y-auto rounded-xl bg-slate-950/70 border border-slate-800/80 p-2 text-xs font-mono">
+                        <div class="text-slate-500 text-center py-4 font-sans">Noch keine Züge gespielt. Ziehe auf dem Brett oder wähle einen Startzug!</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Pawn Promotion Modal -->
+    <div id="promotionModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 max-w-sm w-full shadow-2xl text-center">
+            <h3 class="text-base font-bold text-white mb-1">Bauernumwandlung</h3>
+            <p class="text-xs text-slate-400 mb-4">Wähle die Figur für deinen Bauern:</p>
+            <div class="grid grid-cols-4 gap-2.5" id="promotionChoices">
+                <!-- Populated dynamically with SVG pieces -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /***********************************************************************
+         * 1. HIGH-DEFINITION STAUNTON SVG CHESS PIECES
+         ***********************************************************************/
+        const PIECE_SVGS = {
+            wP: `<svg viewBox="0 0 45 45" class="chess-piece"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#f8fafc" stroke="#1e293b" stroke-width="2" stroke-linecap="round"/></svg>`,
+            wN: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="none" fill-rule="evenodd" stroke="#1e293b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" fill="#f8fafc"/><path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 13.5,7.5 C 14.5,6.5 16.5,10 16.5,10 L 18.5,10 C 18.5,10 19.28,8.008 21,7 C 22,7 22,10 22,10" fill="#f8fafc"/><circle cx="15.5" cy="14.5" r="1" fill="#1e293b"/></g></svg>`,
+            wB: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="none" fill-rule="evenodd" stroke="#1e293b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g fill="#f8fafc" stroke-linecap="butt"><path d="M 9,36 C 12.39,35.03 19.11,36.43 22.5,34 C 25.89,36.43 32.61,35.03 36,36 C 36,36 37.65,36.54 39,38 C 38.32,38.97 37.35,38.99 36,38.5 C 32.61,37.53 25.89,38.96 22.5,37.5 C 19.11,38.96 12.39,37.53 9,38.5 C 7.646,38.99 6.677,38.97 6,38 C 7.354,36.06 9,36 9,36 z"/><path d="M 15,32 C 17.5,34.5 27.5,34.5 30,32 C 30.5,30.5 30,30 30,30 C 30,27.5 27.5,26 27.5,26 C 33,24.5 33.5,14.5 22.5,10.5 C 11.5,14.5 12,24.5 17.5,26 C 17.5,26 15,27.5 15,30 C 15,30 14.5,30.5 15,32 z"/><path d="M 25 8 A 2.5 2.5 0 1 1  20,8 A 2.5 2.5 0 1 1  25 8 z"/></g><path d="M 17.5,26 L 27.5,26 M 15,30 L 30,30 M 22.5,15.5 L 22.5,20.5 M 20,18 L 25,18" stroke-linejoin="miter"/></g></svg>`,
+            wR: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="#f8fafc" fill-rule="evenodd" stroke="#1e293b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 9,39 L 36,39 L 36,36 L 9,36 L 9,39 z"/><path d="M 12,36 L 12,32 L 33,32 L 33,36 L 12,36 z"/><path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14"/><path d="M 34,14 L 31,17 L 14,17 L 11,14"/><path d="M 31,17 L 31,29.5 L 14,29.5 L 14,17"/><path d="M 14,29.5 L 12,32 L 33,32 L 31,29.5"/></g></svg>`,
+            wQ: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="#f8fafc" fill-rule="evenodd" stroke="#1e293b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 8,12 A 2,2 0 1,1 4,12 A 2,2 0 1,1 8,12 z"/><path d="M 16.5,9.5 A 2,2 0 1,1 12.5,9.5 A 2,2 0 1,1 16.5,9.5 z"/><path d="M 24.5,8 A 2,2 0 1,1 20.5,8 A 2,2 0 1,1 24.5,8 z"/><path d="M 32.5,9.5 A 2,2 0 1,1 28.5,9.5 A 2,2 0 1,1 32.5,9.5 z"/><path d="M 41,12 A 2,2 0 1,1 37,12 A 2,2 0 1,1 41,12 z"/><path d="M 9,26 C 17.5,24.5 30,24.5 36,26 L 38,14 L 31,25 L 31,11 L 25.5,24.5 L 22.5,9.5 L 19.5,24.5 L 14,11 L 14,25 L 7,14 L 9,26 z"/><path d="M 9,26 C 9,28 10.5,28 11.5,30 C 12.5,31.5 12.5,31 12,33.5 C 10.5,34.5 10.5,36 10.5,36 C 9,37.5 11,38.5 11,38.5 C 17.5,39.5 27.5,39.5 34,38.5 C 34,38.5 35.5,37.5 34,36 C 34,36 34.5,34.5 33,33.5 C 32.5,31 32.5,31.5 33.5,30 C 34.5,28 36,28 36,26 C 27.5,24.5 17.5,24.5 9,26 z"/></g></svg>`,
+            wK: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="none" fill-rule="evenodd" stroke="#1e293b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M 22.5,11.63 L 22.5,6" stroke-linejoin="miter"/><path d="M 20,8 L 25,8" stroke-linejoin="miter"/><path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" fill="#f8fafc" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M 11.5,37 C 17,40.5 27,40.5 32.5,37 L 32.5,30 C 32.5,30 41.5,25.5 38.5,19.5 C 34.5,13 25,16 22.5,23.5 L 22.5,27 L 22.5,23.5 C 19,16 9.5,13 6.5,19.5 C 3.5,25.5 11.5,29.5 11.5,29.5 L 11.5,37 z" fill="#f8fafc"/><path d="M 11.5,30 C 17,27 27,27 32.5,30"/><path d="M 11.5,33.5 C 17,30.5 27,30.5 32.5,33.5"/><path d="M 11.5,37 C 17,34 27,34 32.5,37"/></g></svg>`,
+
+            bP: `<svg viewBox="0 0 45 45" class="chess-piece"><path d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+            bN: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="none" fill-rule="evenodd" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" fill="#0f172a"/><path d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,9.506 13.5,8.5 13.5,7.5 C 14.5,6.5 16.5,10 16.5,10 L 18.5,10 C 18.5,10 19.28,8.008 21,7 C 22,7 22,10 22,10" fill="#0f172a"/><circle cx="15.5" cy="14.5" r="1" fill="#f8fafc"/></g></svg>`,
+            bB: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="none" fill-rule="evenodd" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g fill="#0f172a" stroke-linecap="butt"><path d="M 9,36 C 12.39,35.03 19.11,36.43 22.5,34 C 25.89,36.43 32.61,35.03 36,36 C 36,36 37.65,36.54 39,38 C 38.32,38.97 37.35,38.99 36,38.5 C 32.61,37.53 25.89,38.96 22.5,37.5 C 19.11,38.96 12.39,37.53 9,38.5 C 7.646,38.99 6.677,38.97 6,38 C 7.354,36.06 9,36 9,36 z"/><path d="M 15,32 C 17.5,34.5 27.5,34.5 30,32 C 30.5,30.5 30,30 30,30 C 30,27.5 27.5,26 27.5,26 C 33,24.5 33.5,14.5 22.5,10.5 C 11.5,14.5 12,24.5 17.5,26 C 17.5,26 15,27.5 15,30 C 15,30 14.5,30.5 15,32 z"/><path d="M 25 8 A 2.5 2.5 0 1 1  20,8 A 2.5 2.5 0 1 1  25 8 z"/></g><path d="M 17.5,26 L 27.5,26 M 15,30 L 30,30 M 22.5,15.5 L 22.5,20.5 M 20,18 L 25,18" stroke="#cbd5e1" stroke-linejoin="miter"/></g></svg>`,
+            bR: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="#0f172a" fill-rule="evenodd" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M 9,39 L 36,39 L 36,36 L 9,36 L 9,39 z"/><path d="M 12,36 L 12,32 L 33,32 L 33,36 L 12,36 z"/><path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14"/><path d="M 34,14 L 31,17 L 14,17 L 11,14"/><path d="M 31,17 L 31,29.5 L 14,29.5 L 14,17"/><path d="M 14,29.5 L 12,32 L 33,32 L 31,29.5"/></g></svg>`,
+            bQ: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="#0f172a" fill-rule="evenodd" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M 8,12 A 2,2 0 1,1 4,12 A 2,2 0 1,1 8,12 z"/><path d="M 16.5,9.5 A 2,2 0 1,1 12.5,9.5 A 2,2 0 1,1 16.5,9.5 z"/><path d="M 24.5,8 A 2,2 0 1,1 20.5,8 A 2,2 0 1,1 24.5,8 z"/><path d="M 32.5,9.5 A 2,2 0 1,1 28.5,9.5 A 2,2 0 1,1 32.5,9.5 z"/><path d="M 41,12 A 2,2 0 1,1 37,12 A 2,2 0 1,1 41,12 z"/><path d="M 9,26 C 17.5,24.5 30,24.5 36,26 L 38,14 L 31,25 L 31,11 L 25.5,24.5 L 22.5,9.5 L 19.5,24.5 L 14,11 L 14,25 L 7,14 L 9,26 z"/><path d="M 9,26 C 9,28 10.5,28 11.5,30 C 12.5,31.5 12.5,31 12,33.5 C 10.5,34.5 10.5,36 10.5,36 C 9,37.5 11,38.5 11,38.5 C 17.5,39.5 27.5,39.5 34,38.5 C 34,38.5 35.5,37.5 34,36 C 34,36 34.5,34.5 33,33.5 C 32.5,31 32.5,31.5 33.5,30 C 34.5,28 36,28 36,26 C 27.5,24.5 17.5,24.5 9,26 z"/></g></svg>`,
+            bK: `<svg viewBox="0 0 45 45" class="chess-piece"><g fill="none" fill-rule="evenodd" stroke="#cbd5e1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M 22.5,11.63 L 22.5,6" stroke-linejoin="miter"/><path d="M 20,8 L 25,8" stroke-linejoin="miter"/><path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" fill="#0f172a" stroke-linecap="butt" stroke-linejoin="miter"/><path d="M 11.5,37 C 17,40.5 27,40.5 32.5,37 L 32.5,30 C 32.5,30 41.5,25.5 38.5,19.5 C 34.5,13 25,16 22.5,23.5 L 22.5,27 L 22.5,23.5 C 19,16 9.5,13 6.5,19.5 C 3.5,25.5 11.5,29.5 11.5,29.5 L 11.5,37 z" fill="#0f172a"/><path d="M 11.5,30 C 17,27 27,27 32.5,30"/><path d="M 11.5,33.5 C 17,30.5 27,30.5 32.5,33.5"/><path d="M 11.5,37 C 17,34 27,34 32.5,37"/></g></svg>`
+        };
+
+        /***********************************************************************
+         * 2. OPENING BOOK & GERMAN STRATEGIC DATABASE
+         ***********************************************************************/
+        // Keyed by space-separated move history in standard SAN
+        const OPENING_BOOK = {
+            "": {
+                name: "Grundstellung",
+                moves: [
+                    { san: "e4", reason: "Eröffnungsbuch: Königsbauer – besetzt sofort das Zentrum und öffnet Diagonalen für Läufer & Dame." },
+                    { san: "d4", reason: "Eröffnungsbuch: Damenbauer – solider Zentrumsanspruch, durch die eigene Dame gedeckt." },
+                    { san: "Nf3", reason: "Eröffnungsbuch: Réti-Eröffnung – flexible Springerentwicklung mit Kontrolle über d4 und e5." }
+                ]
+            },
+            "e4": {
+                name: "Königsbauern-Eröffnung (1. e4)",
+                moves: [
+                    { san: "e5", reason: "Eröffnungsbuch: Klassische Antwort – verhindert den weißen Durchbruch d4 und besetzt das Zentrum." },
+                    { san: "c5", reason: "Eröffnungsbuch: Sizilianische Verteidigung – kämpft asymmetrisch gegen das Feld d4." },
+                    { san: "c6", reason: "Eröffnungsbuch: Caro-Kann-Verteidigung – extrem solide Vorbereitung für den Vorstoß d5." }
+                ]
+            },
+            "d4": {
+                name: "Damenbauern-Eröffnung (1. d4)",
+                moves: [
+                    { san: "d5", reason: "Eröffnungsbuch: Klassische Zentrumskontrolle gegen den weißen Damenbauern." },
+                    { san: "Nf6", reason: "Eröffnungsbuch: Indische Verteidigung – entwickelt den Springer und verhindert sofortiges e4." },
+                    { san: "e6", reason: "Eröffnungsbuch: Flexibler Aufbau mit Übergang ins Damengambit oder Französisch." }
+                ]
+            },
+            "e4 e5": {
+                name: "Offenes Spiel (1. e4 e5)",
+                moves: [
+                    { san: "Nf3", reason: "Eröffnungsbuch: Entwickelt den Springer auf sein bestes Feld und greift sofort den Bauern e5 an." },
+                    { san: "Bc4", reason: "Eröffnungsbuch: Läuferspiel – visiert direkt den schwächsten Punkt f7 an." },
+                    { san: "Nc3", reason: "Eröffnungsbuch: Wiener Partie – ruhige Entwicklung mit Unterstützung des Zentrums." }
+                ]
+            },
+            "e4 e5 Nf3": {
+                name: "Königsspringerspiel",
+                moves: [
+                    { san: "Nc6", reason: "Eröffnungsbuch: Deckt den angegriffenen Bauern auf e5 und entwickelt eine Leichtfigur." },
+                    { san: "Nf6", reason: "Eröffnungsbuch: Russische Verteidigung (Petroff) – direkter Gegenangriff auf den Bauern e4." }
+                ]
+            },
+            "e4 e5 Nf3 Nc6": {
+                name: "Königsspringerspiel (2... Sc6)",
+                moves: [
+                    { san: "Bc4", reason: "Eröffnungsbuch: Italienische Partie – greift f7 an und macht den Weg für die kurze Rochade frei." },
+                    { san: "Bb5", reason: "Eröffnungsbuch: Spanische Partie (Ruy Lopez) – setzt den Verteidiger des e5-Bauern unter Druck." },
+                    { san: "d4", reason: "Eröffnungsbuch: Schottische Partie – öffnet sofort das Zentrum." }
+                ]
+            },
+            "e4 e5 Nf3 Nc6 Bc4": {
+                name: "Italienische Partie",
+                moves: [
+                    { san: "Bc5", reason: "Eröffnungsbuch: Giuoco Piano – aktive Läuferentwicklung ins Zentrum und Vorbereitung der Rochade." },
+                    { san: "Nf6", reason: "Eröffnungsbuch: Zweispringerspiel im Nachzuge – aktiver Gegenangriff auf den Bauern e4." }
+                ]
+            },
+            "e4 e5 Nf3 Nc6 Bc4 Bc5": {
+                name: "Italienische Partie (Giuoco Piano)",
+                moves: [
+                    { san: "c3", reason: "Eröffnungsbuch: Bereitet das starke Bauernzentrum mit d4 vor." },
+                    { san: "O-O", reason: "Eröffnungsbuch: Bringt den König in Sicherheit und aktiviert den Turm." },
+                    { san: "d3", reason: "Eröffnungsbuch: Giuoco Pianissimo – schützt e4 solide und baut ruhig auf." }
+                ]
+            },
+            "e4 e5 Nf3 Nc6 Bc4 Nf6": {
+                name: "Zweispringerspiel im Nachzuge",
+                moves: [
+                    { san: "d3", reason: "Eröffnungsbuch: Deckt den Bauern e4 zuverlässig und hält die Stellung unter Kontrolle." },
+                    { san: "Ng5", reason: "Eröffnungsbuch: Scharfer Angriff auf den Punkt f7 (erzwingt d5 von Schwarz)." },
+                    { san: "O-O", reason: "Eröffnungsbuch: Königssicherheit durch sofortige kurze Rochade." }
+                ]
+            },
+            "e4 e5 Nf3 Nc6 Bb5": {
+                name: "Spanische Partie (Ruy Lopez)",
+                moves: [
+                    { san: "a6", reason: "Eröffnungsbuch: Morphy-Verteidigung – befragt sofort den weißen Läufer auf b5." },
+                    { san: "Nf6", reason: "Eröffnungsbuch: Berliner Verteidigung – extrem solide Großmeister-Antwort." }
+                ]
+            },
+            "e4 c5": {
+                name: "Sizilianische Verteidigung",
+                moves: [
+                    { san: "Nf3", reason: "Eröffnungsbuch: Bereitet die Öffnung des Zentrums mit d4 vor." },
+                    { san: "Nc3", reason: "Eröffnungsbuch: Geschlossener Sizilianer – ruhiger, positioneller Aufbau." },
+                    { san: "c3", reason: "Eröffnungsbuch: Alapin-Variante – bereitet ein starkes Zentrum mit d4 vor." }
+                ]
+            },
+            "e4 c5 Nf3": {
+                name: "Sizilianische Verteidigung (2. Sf3)",
+                moves: [
+                    { san: "d6", reason: "Eröffnungsbuch: Kontrolliert das wichtige Feld e5 und leitet oft zur Najdorf- oder Drachenvariante über." },
+                    { san: "Nc6", reason: "Eröffnungsbuch: Entwickelt den Springer mit starker Kontrolle über d4." },
+                    { san: "e6", reason: "Eröffnungsbuch: Flexibler Aufbau mit Kontrolle über d5." }
+                ]
+            },
+            "e4 c5 Nf3 d6": {
+                name: "Sizilianisch (2... d6)",
+                moves: [
+                    { san: "d4", reason: "Eröffnungsbuch: Offener Sizilianer – öffnet das Zentrum für aktives Figurenspiel." },
+                    { san: "Bc4", reason: "Eröffnungsbuch: Solide Läuferentwicklung mit Vorbereitung der kurzen Rochade." }
+                ]
+            },
+            "e4 c6": {
+                name: "Caro-Kann-Verteidigung",
+                moves: [
+                    { san: "d4", reason: "Eröffnungsbuch: Besetzt das volle Bauernzentrum mit e4 und d4." },
+                    { san: "Nc3", reason: "Eröffnungsbuch: Entwickelt den Springer und stützt e4." }
+                ]
+            },
+            "e4 c6 d4": {
+                name: "Caro-Kann-Verteidigung",
+                moves: [
+                    { san: "d5", reason: "Eröffnungsbuch: Greift das weiße Zentrum sofort an, gedeckt durch den Bauern c6." }
+                ]
+            },
+            "e4 e6": {
+                name: "Französische Verteidigung",
+                moves: [
+                    { san: "d4", reason: "Eröffnungsbuch: Nimmt das gesamte Zentrum in Besitz." }
+                ]
+            },
+            "e4 e6 d4": {
+                name: "Französische Verteidigung",
+                moves: [
+                    { san: "d5", reason: "Eröffnungsbuch: Fordert den weißen Bauern e4 im Zentrum heraus." }
+                ]
+            },
+            "d4 d5": {
+                name: "Geschlossenes Spiel (1. d4 d5)",
+                moves: [
+                    { san: "Bf4", reason: "Eröffnungsbuch: Londoner System – entwickelt den Läufer vor die Bauernkette auf ein aktives Feld." },
+                    { san: "c4", reason: "Eröffnungsbuch: Damengambit – setzt den schwarzen Zentrumsbauern d5 sofort unter Druck." },
+                    { san: "Nf3", reason: "Eröffnungsbuch: Solide Springerentwicklung ins Zentrum." }
+                ]
+            },
+            "d4 d5 Bf4": {
+                name: "Londoner System",
+                moves: [
+                    { san: "Nf6", reason: "Eröffnungsbuch: Entwickelt den Springer und kontrolliert e4." },
+                    { san: "c5", reason: "Eröffnungsbuch: Greift das weiße Zentrum sofort von der Seite an." }
+                ]
+            },
+            "d4 d5 Bf4 Nf6": {
+                name: "Londoner System",
+                moves: [
+                    { san: "e3", reason: "Eröffnungsbuch: Festigt die Pyramide um d4 und öffnet die Diagonale für den Läufer f1." },
+                    { san: "Nf3", reason: "Eröffnungsbuch: Entwickelt den Königsspringer auf sein stärkstes Feld." }
+                ]
+            },
+            "d4 d5 c4": {
+                name: "Damengambit",
+                moves: [
+                    { san: "e6", reason: "Eröffnungsbuch: Abgelehntes Damengambit – hält den Punkt d5 mit einem Bauern stabil." },
+                    { san: "c6", reason: "Eröffnungsbuch: Slawische Verteidigung – stützt d5, ohne den weißfeldrigen Läufer einzusperren." }
+                ]
+            },
+            "d4 Nf6": {
+                name: "Indische Verteidigung",
+                moves: [
+                    { san: "c4", reason: "Eröffnungsbuch: Erweitert den Raumvorteil im Zentrum und am Damenflügel." },
+                    { san: "Bf4", reason: "Eröffnungsbuch: Londoner System – sehr solider und leicht spielbarer Aufbau." },
+                    { san: "Nf3", reason: "Eröffnungsbuch: Ruhige und flexible Figurenentwicklung." }
+                ]
+            }
+        };
+
+        /***********************************************************************
+         * 3. CHESS ENGINE (MINIMAX + ALPHA-BETA + PIECE SQUARE TABLES)
+         ***********************************************************************/
+        const PIECE_VALUES = {
+            p: 100,
+            n: 320,
+            b: 330,
+            r: 500,
+            q: 900,
+            k: 20000
+        };
+
+        // Piece-Square Tables (from White's perspective; rank 8 is row 0, rank 1 is row 7)
+        const PST = {
+            p: [
+                [  0,  0,  0,  0,  0,  0,  0,  0],
+                [ 50, 50, 50, 50, 50, 50, 50, 50],
+                [ 10, 10, 20, 30, 30, 20, 10, 10],
+                [  5,  5, 10, 27, 27, 10,  5,  5],
+                [  0,  0,  0, 25, 25,  0,  0,  0],
+                [  5, -5,-10,  0,  0,-10, -5,  5],
+                [  5, 10, 10,-25,-25, 10, 10,  5],
+                [  0,  0,  0,  0,  0,  0,  0,  0]
+            ],
+            n: [
+                [-50,-40,-30,-30,-30,-30,-40,-50],
+                [-40,-20,  0,  0,  0,  0,-20,-40],
+                [-30,  0, 10, 15, 15, 10,  0,-30],
+                [-30,  5, 15, 20, 20, 15,  5,-30],
+                [-30,  0, 15, 20, 20, 15,  0,-30],
+                [-30,  5, 10, 15, 15, 10,  5,-30],
+                [-40,-20,  0,  5,  5,  0,-20,-40],
+                [-50,-40,-30,-30,-30,-30,-40,-50]
+            ],
+            b: [
+                [-20,-10,-10,-10,-10,-10,-10,-20],
+                [-10,  0,  0,  0,  0,  0,  0,-10],
+                [-10,  0,  5, 10, 10,  5,  0,-10],
+                [-10,  5,  5, 10, 10,  5,  5,-10],
+                [-10,  0, 10, 10, 10, 10,  0,-10],
+                [-10, 10, 10, 10, 10, 10, 10,-10],
+                [-10,  5,  0,  0,  0,  0,  5,-10],
+                [-20,-10,-10,-10,-10,-10,-10,-20]
+            ],
+            r: [
+                [  0,  0,  0,  0,  0,  0,  0,  0],
+                [  5, 10, 10, 10, 10, 10, 10,  5],
+                [ -5,  0,  0,  0,  0,  0,  0, -5],
+                [ -5,  0,  0,  0,  0,  0,  0, -5],
+                [ -5,  0,  0,  0,  0,  0,  0, -5],
+                [ -5,  0,  0,  0,  0,  0,  0, -5],
+                [ -5,  0,  0,  0,  0,  0,  0, -5],
+                [  0,  0,  0,  5,  5,  0,  0,  0]
+            ],
+            q: [
+                [-20,-10,-10, -5, -5,-10,-10,-20],
+                [-10,  0,  0,  0,  0,  0,  0,-10],
+                [-10,  0,  5,  5,  5,  5,  0,-10],
+                [ -5,  0,  5,  5,  5,  5,  0, -5],
+                [  0,  0,  5,  5,  5,  5,  0, -5],
+                [-10,  5,  5,  5,  5,  5,  0,-10],
+                [-10,  0,  5,  0,  0,  0,  0,-10],
+                [-20,-10,-10, -5, -5,-10,-10,-20]
+            ],
+            k: [
+                [-30,-40,-40,-50,-50,-40,-40,-30],
+                [-30,-40,-40,-50,-50,-40,-40,-30],
+                [-30,-40,-40,-50,-50,-40,-40,-30],
+                [-30,-40,-40,-50,-50,-40,-40,-30],
+                [-20,-30,-30,-40,-40,-30,-30,-20],
+                [-10,-20,-20,-20,-20,-20,-20,-10],
+                [ 20, 20,  0,  0,  0,  0, 20, 20],
+                [ 20, 30, 10,  0,  0, 10, 30, 20]
+            ]
+        };
+
+        /**
+         * Static board evaluation in centipawns (positive = White advantage, negative = Black advantage)
+         */
+        function evaluateBoard(chessInstance) {
+            if (chessInstance.in_checkmate()) {
+                return chessInstance.turn() === 'w' ? -99999 : 99999;
+            }
+            if (chessInstance.in_draw() || chessInstance.in_stalemate() || chessInstance.in_threefold_repetition()) {
+                return 0;
+            }
+
+            const board = chessInstance.board();
+            let score = 0;
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (!piece) continue;
+
+                    const baseVal = PIECE_VALUES[piece.type] || 0;
+                    const table = PST[piece.type];
+                    let positionalVal = 0;
+
+                    if (table) {
+                        if (piece.color === 'w') {
+                            positionalVal = table[r][c];
+                        } else {
+                            positionalVal = table[7 - r][c];
+                        }
+                    }
+
+                    if (piece.color === 'w') {
+                        score += baseVal + positionalVal;
+                    } else {
+                        score -= (baseVal + positionalVal);
+                    }
+                }
+            }
+
+            // Slight bonus for castling rights / check pressure
+            if (chessInstance.in_check()) {
+                score += (chessInstance.turn() === 'w' ? -25 : 25);
+            }
+
+            return score;
+        }
+
+        /**
+         * Order moves for faster Alpha-Beta pruning (MVV-LVA + Promotions + Center)
+         */
+        function orderMoves(moves) {
+            return moves.sort((a, b) => {
+                let scoreA = 0;
+                let scoreB = 0;
+
+                if (a.captured) scoreA += 10 * (PIECE_VALUES[a.captured] || 100) - (PIECE_VALUES[a.piece] || 100) / 10;
+                if (b.captured) scoreB += 10 * (PIECE_VALUES[b.captured] || 100) - (PIECE_VALUES[b.piece] || 100) / 10;
+
+                if (a.promotion) scoreA += 800;
+                if (b.promotion) scoreB += 800;
+
+                if (a.san === 'O-O' || a.san === 'O-O-O') scoreA += 60;
+                if (b.san === 'O-O' || b.san === 'O-O-O') scoreB += 60;
+
+                return scoreB - scoreA;
+            });
+        }
+
+        /**
+         * Minimax with Alpha-Beta Pruning
+         */
+        function minimax(chessInstance, depth, alpha, beta, isMaximizing) {
+            if (depth === 0 || chessInstance.game_over()) {
+                return evaluateBoard(chessInstance);
+            }
+
+            const moves = orderMoves(chessInstance.moves({ verbose: true }));
+
+            if (isMaximizing) {
+                let maxEval = -Infinity;
+                for (let i = 0; i < moves.length; i++) {
+                    chessInstance.move(moves[i]);
+                    const evaluation = minimax(chessInstance, depth - 1, alpha, beta, false);
+                    chessInstance.undo();
+                    if (evaluation > maxEval) maxEval = evaluation;
+                    if (evaluation > alpha) alpha = evaluation;
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                for (let i = 0; i < moves.length; i++) {
+                    chessInstance.move(moves[i]);
+                    const evaluation = minimax(chessInstance, depth - 1, alpha, beta, true);
+                    chessInstance.undo();
+                    if (evaluation < minEval) minEval = evaluation;
+                    if (evaluation < beta) beta = evaluation;
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        /**
+         * Convert English SAN to German Notation (N->S, B->L, R->T, Q->D, K->K)
+         */
+        function toGermanSAN(san) {
+            if (!san) return '';
+            if (san === 'O-O' || san === 'O-O-O') return san;
+            return san
+                .replace(/^N/, 'S')
+                .replace(/^B/, 'L')
+                .replace(/^R/, 'T')
+                .replace(/^Q/, 'D')
+                .replace(/=N/, '=S')
+                .replace(/=B/, '=L')
+                .replace(/=R/, '=T')
+                .replace(/=Q/, '=D');
+        }
+
+        /**
+         * Generate a clear, human-friendly German explanation for why a move is recommended
+         */
+        function explainMoveInGerman(moveObj, scoreWhite, turnColor, bookReason, isCheckAfter, isMateAfter) {
+            if (bookReason) return bookReason;
+            if (isMateAfter) return "Matt-Kombination! Entscheidet die Partie sofort.";
+
+            const pieceNames = {
+                p: "Bauer",
+                n: "Springer",
+                b: "Läufer",
+                r: "Turm",
+                q: "Dame",
+                k: "König"
+            };
+            const pieceDe = pieceNames[moveObj.piece] || "Figur";
+            const capturedDe = moveObj.captured ? pieceNames[moveObj.captured] : null;
+            const centerSquares = ['d4', 'd5', 'e4', 'e5'];
+            const extendedCenter = ['c3', 'c4', 'c5', 'c6', 'f3', 'f4', 'f5', 'f6'];
+
+            if (moveObj.san.startsWith('O-O')) {
+                return "Bringt den König per Rochade in Sicherheit und verbindet die Türme.";
+            }
+            if (moveObj.promotion) {
+                return "Bauernumwandlung! Verwandelt den Bauern in eine starke Dame.";
+            }
+            if (capturedDe && isCheckAfter) {
+                return `Taktischer Schlagzug mit Schachgebot: Schlägt ${capturedDe} auf ${moveObj.to}.`;
+            }
+            if (capturedDe) {
+                const gain = (PIECE_VALUES[moveObj.captured] || 100) - (PIECE_VALUES[moveObj.piece] || 100);
+                if (gain > 0) {
+                    return `Materialgewinn: ${pieceDe} schlägt den höherwertigen ${capturedDe} auf ${moveObj.to}.`;
+                }
+                return `Schlagzug: ${pieceDe} erobert ${capturedDe} auf ${moveObj.to} und öffnet Linien.`;
+            }
+            if (isCheckAfter) {
+                return `Direktes Schachgebot mit ${pieceDe} auf ${moveObj.to} – zwingt den gegnerischen König zur Reaktion.`;
+            }
+            if (moveObj.piece === 'p' && centerSquares.includes(moveObj.to)) {
+                return `Besetzt das wichtige Zentrumsfeld ${moveObj.to} und gewinnt Raum.`;
+            }
+            if ((moveObj.piece === 'n' || moveObj.piece === 'b') && (centerSquares.includes(moveObj.to) || extendedCenter.includes(moveObj.to))) {
+                return `Entwickelt den ${pieceDe} aktiv nach ${moveObj.to} mit starker Zentrumskontrolle.`;
+            }
+            if (moveObj.piece === 'r' && (moveObj.to[0] === 'd' || moveObj.to[0] === 'e' || moveObj.to[0] === 'c')) {
+                return `Positioniert den Turm auf der wichtigen Linie (${moveObj.to}).`;
+            }
+            return `Verbessert die Stellung des ${pieceDe}s auf ${moveObj.to} und erhöht die Figurenaktivität.`;
+        }
+
+        /***********************************************************************
+         * 4. APPLICATION STATE & INTERACTIVE BOARD CONTROLLER
+         ***********************************************************************/
+        const game = new Chess();
+        let boardOrientation = 'w'; // 'w' = White at bottom, 'b' = Black at bottom
+        let selectedSquare = null;
+        let searchDepth = 3; // Default standard depth
+        let topRecommendedMoves = [];
+        let highlightedRecommendationIndex = 0; // 0 = best move arrow emphasized
+        let showArrows = true;
+        let pendingPromotionMove = null;
+
+        /**
+         * Initialize the application on load
+         */
+        window.onload = function () {
+            renderAll();
+        };
+
+        /**
+         * Set Engine Search Depth
+         */
+        function setSearchDepth(depth) {
+            searchDepth = depth;
+            [2, 3, 4].forEach(d => {
+                const btn = document.getElementById(`depthBtn${d}`);
+                if (d === depth) {
+                    btn.className = "px-2.5 py-1 rounded-md font-semibold bg-emerald-600 text-white shadow";
+                } else {
+                    btn.className = "px-2.5 py-1 rounded-md font-medium text-slate-300 hover:text-white transition";
+                }
+            });
+            runEngineAnalysis();
+        }
+
+        /**
+         * Flip board perspective (White / Black)
+         */
+        function flipBoardOrientation() {
+            boardOrientation = boardOrientation === 'w' ? 'b' : 'w';
+            renderBoard();
+            renderPlayerBars();
+            drawBestMoveArrows();
+        }
+
+        /**
+         * Toggle SVG recommendation arrows
+         */
+        function toggleArrowsVisibility() {
+            const cb = document.getElementById('toggleArrowsCheckbox');
+            showArrows = cb.checked;
+            drawBestMoveArrows();
+        }
+
+        /**
+         * Undo the last half-move
+         */
+        function undoLastMove() {
+            if (game.history().length === 0) return;
+            game.undo();
+            selectedSquare = null;
+            hideInputFeedback();
+            renderAll();
+        }
+
+        /**
+         * Reset to initial starting position
+         */
+        function resetGame() {
+            game.reset();
+            selectedSquare = null;
+            hideInputFeedback();
+            renderAll();
+        }
+
+        /**
+         * Load a famous opening preset so user can immediately explore
+         */
+        function loadOpeningPreset(sanMovesArray) {
+            game.reset();
+            selectedSquare = null;
+            for (const san of sanMovesArray) {
+                game.move(san);
+            }
+            hideInputFeedback();
+            renderAll();
+        }
+
+        /**
+         * Execute the #1 Recommended Move on the board
+         */
+        function playBestRecommendedMove() {
+            if (game.game_over() || topRecommendedMoves.length === 0) return;
+            const best = topRecommendedMoves[0];
+            executeMove({
+                from: best.from,
+                to: best.to,
+                promotion: best.promotion || 'q'
+            });
+        }
+
+        /**
+         * Execute a specific recommended move by index
+         */
+        function playRecommendedMoveByIndex(idx) {
+            if (game.game_over() || !topRecommendedMoves[idx]) return;
+            const rec = topRecommendedMoves[idx];
+            executeMove({
+                from: rec.from,
+                to: rec.to,
+                promotion: rec.promotion || 'q'
+            });
+        }
+
+        /**
+         * Execute move safely and refresh UI + Engine Analysis
+         */
+        function executeMove(moveSpec) {
+            const result = game.move(moveSpec);
+            if (result) {
+                selectedSquare = null;
+                hideInputFeedback();
+                renderAll();
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * Handle clicking a square on the 8x8 visual board
+         */
+        function onSquareClick(squareName) {
+            if (game.game_over()) return;
+
+            const pieceOnClicked = game.get(squareName);
+            const currentTurn = game.turn();
+
+            // If a square is already selected, check if clicked square is a legal destination
+            if (selectedSquare) {
+                if (selectedSquare === squareName) {
+                    selectedSquare = null;
+                    renderBoard();
+                    return;
+                }
+
+                const legalMovesFromSelected = game.moves({ square: selectedSquare, verbose: true });
+                const matchingMoves = legalMovesFromSelected.filter(m => m.to === squareName);
+
+                if (matchingMoves.length > 0) {
+                    // Check if move is a pawn promotion
+                    const isPromotion = matchingMoves.some(m => m.promotion);
+                    if (isPromotion) {
+                        openPromotionModal(selectedSquare, squareName, currentTurn);
+                        return;
+                    }
+
+                    executeMove({ from: selectedSquare, to: squareName });
+                    return;
+                }
+            }
+
+            // Otherwise, if the clicked square contains a piece of the side to move, select it
+            if (pieceOnClicked && pieceOnClicked.color === currentTurn) {
+                selectedSquare = squareName;
+                renderBoard();
+            } else {
+                selectedSquare = null;
+                renderBoard();
+            }
+        }
+
+        /**
+         * Open pawn promotion modal
+         */
+        function openPromotionModal(fromSq, toSq, color) {
+            pendingPromotionMove = { from: fromSq, to: toSq };
+            const modal = document.getElementById('promotionModal');
+            const container = document.getElementById('promotionChoices');
+            const options = [
+                { code: 'q', name: 'Dame', svgKey: color + 'Q' },
+                { code: 'r', name: 'Turm', svgKey: color + 'R' },
+                { code: 'b', name: 'Läufer', svgKey: color + 'B' },
+                { code: 'n', name: 'Springer', svgKey: color + 'N' }
+            ];
+
+            container.innerHTML = options.map(opt => `
+                <button onclick="confirmPromotion('${opt.code}')" class="flex flex-col items-center p-2.5 rounded-xl bg-slate-800 hover:bg-emerald-600/30 border border-slate-700 hover:border-emerald-500 transition">
+                    <div class="w-12 h-12 flex items-center justify-center">${PIECE_SVGS[opt.svgKey]}</div>
+                    <span class="text-xs font-semibold text-slate-200 mt-1">${opt.name}</span>
+                </button>
+            `).join('');
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function confirmPromotion(promoPiece) {
+            const modal = document.getElementById('promotionModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            if (pendingPromotionMove) {
+                executeMove({
+                    from: pendingPromotionMove.from,
+                    to: pendingPromotionMove.to,
+                    promotion: promoPiece
+                });
+                pendingPromotionMove = null;
+            }
+        }
+
+        /***********************************************************************
+         * 5. FLEXIBLE MOVE INPUT PARSER (GERMAN SAN, ENGLISH SAN & COORDINATES)
+         ***********************************************************************/
+        function handleMoveFormSubmit(e) {
+            e.preventDefault();
+            const inputEl = document.getElementById('moveTextInput');
+            const rawText = inputEl.value.trim();
+            if (!rawText) return;
+
+            const success = parseAndPlayUserMove(rawText);
+            if (success) {
+                inputEl.value = '';
+                showInputFeedback(`Zug "${rawText}" erfolgreich ausgeführt.`, false);
+            } else {
+                showInputFeedback(`Ungültiger oder nicht erlaubter Zug: "${rawText}". Tipp: Nutze z.B. e4, Sf3, Lc4, e2e4 oder klicke direkt auf das Brett.`, true);
+            }
+        }
+
+        function parseAndPlayUserMove(inputStr) {
+            if (game.game_over()) return false;
+            let cleaned = inputStr.trim().replace(/\s+/g, '');
+
+            // Normalize castling
+            if (cleaned === '0-0' || cleaned.toLowerCase() === 'o-o') cleaned = 'O-O';
+            if (cleaned === '0-0-0' || cleaned.toLowerCase() === 'o-o-o') cleaned = 'O-O-O';
+
+            // 1. Try direct coordinate format like "e2e4" or "e2-e4"
+            const coordMatch = cleaned.match(/^([a-h][1-8])[-x:]?([a-h][1-8])([qrbnQRBNdDtTlLsS])?$/);
+            if (coordMatch) {
+                const from = coordMatch[1];
+                const to = coordMatch[2];
+                let promo = 'q';
+                if (coordMatch[3]) {
+                    const pChar = coordMatch[3].toUpperCase();
+                    const mapPromo = { D: 'q', Q: 'q', T: 'r', R: 'r', L: 'b', B: 'b', S: 'n', N: 'n' };
+                    promo = mapPromo[pChar] || 'q';
+                }
+                if (executeMove({ from, to, promotion: promo })) return true;
+            }
+
+            // 2. Convert German piece letters (S, L, T, D, K) to English SAN (N, B, R, Q, K)
+            const germanToEnglishSAN = cleaned
+                .replace(/^S/, 'N')
+                .replace(/^L/, 'B')
+                .replace(/^T/, 'R')
+                .replace(/^D/, 'Q')
+                .replace(/=S/i, '=N')
+                .replace(/=L/i, '=B')
+                .replace(/=T/i, '=R')
+                .replace(/=D/i, '=Q');
+
+            // Try matching against legal moves (case-insensitive fallback)
+            const legalMoves = game.moves({ verbose: true });
+            for (const m of legalMoves) {
+                const mSanClean = m.san.replace(/[+#]/g, '');
+                const mGermanClean = toGermanSAN(m.san).replace(/[+#]/g, '');
+
+                if (
+                    m.san === cleaned ||
+                    m.san === germanToEnglishSAN ||
+                    mSanClean.toLowerCase() === cleaned.replace(/[+#]/g, '').toLowerCase() ||
+                    mSanClean.toLowerCase() === germanToEnglishSAN.replace(/[+#]/g, '').toLowerCase() ||
+                    mGermanClean.toLowerCase() === cleaned.replace(/[+#]/g, '').toLowerCase()
+                ) {
+                    return executeMove({ from: m.from, to: m.to, promotion: m.promotion || 'q' });
+                }
+            }
+
+            return false;
+        }
+
+        function showInputFeedback(msg, isError) {
+            const box = document.getElementById('moveInputFeedback');
+            box.textContent = msg;
+            box.classList.remove('hidden', 'bg-rose-950/80', 'text-rose-300', 'border-rose-700', 'bg-emerald-950/80', 'text-emerald-300', 'border-emerald-700');
+            if (isError) {
+                box.classList.add('bg-rose-950/80', 'text-rose-300', 'border', 'border-rose-700');
+            } else {
+                box.classList.add('bg-emerald-950/80', 'text-emerald-300', 'border', 'border-emerald-700');
+                setTimeout(hideInputFeedback, 2400);
+            }
+        }
+
+        function hideInputFeedback() {
+            const box = document.getElementById('moveInputFeedback');
+            if (box) box.classList.add('hidden');
+        }
+
+        /***********************************************************************
+         * 6. REAL-TIME ENGINE ANALYSIS & TOP 3 BEST MOVE GENERATOR
+         ***********************************************************************/
+        function runEngineAnalysis() {
+            const turn = game.turn(); // 'w' or 'b'
+            const historySan = game.history();
+            const historyKey = historySan.join(' ');
+
+            // Update detected opening name in header
+            updateDetectedOpeningName(historySan);
+
+            if (game.game_over()) {
+                topRecommendedMoves = [];
+                renderRecommendationsUI();
+                drawBestMoveArrows();
+                updateEvaluationBar(evaluateBoard(game));
+                return;
+            }
+
+            const legalMoves = orderMoves(game.moves({ verbose: true }));
+            const bookEntry = OPENING_BOOK[historyKey];
+            const bookMap = {};
+            if (bookEntry && bookEntry.moves) {
+                bookEntry.moves.forEach((bm, idx) => {
+                    bookMap[bm.san] = { reason: bm.reason, bonus: (3 - idx) * 35 };
+                });
+            }
+
+            const scoredMoves = [];
+            const effectiveDepth = Math.max(1, searchDepth - 1);
+
+            for (let i = 0; i < legalMoves.length; i++) {
+                const moveObj = legalMoves[i];
+                game.move(moveObj);
+
+                const isMateAfter = game.in_checkmate();
+                const isCheckAfter = game.in_check();
+
+                let rawScoreWhite;
+                if (isMateAfter) {
+                    rawScoreWhite = turn === 'w' ? 99999 : -99999;
+                } else {
+                    rawScoreWhite = minimax(
+                        game,
+                        effectiveDepth,
+                        -Infinity,
+                        Infinity,
+                        game.turn() === 'w'
+                    );
+                }
+
+                game.undo();
+
+                // Apply slight opening book preference so standard grandmaster theory is prioritized in the opening
+                const bookInfo = bookMap[moveObj.san];
+                let adjustedScoreWhite = rawScoreWhite;
+                if (bookInfo) {
+                    adjustedScoreWhite += (turn === 'w' ? bookInfo.bonus : -bookInfo.bonus);
+                }
+
+                const explanation = explainMoveInGerman(
+                    moveObj,
+                    adjustedScoreWhite,
+                    turn,
+                    bookInfo ? bookInfo.reason : null,
+                    isCheckAfter,
+                    isMateAfter
+                );
+
+                scoredMoves.push({
+                    from: moveObj.from,
+                    to: moveObj.to,
+                    san: moveObj.san,
+                    germanSan: toGermanSAN(moveObj.san),
+                    promotion: moveObj.promotion,
+                    scoreWhite: adjustedScoreWhite,
+                    isMate: isMateAfter,
+                    isBook: Boolean(bookInfo),
+                    explanation: explanation
+                });
+            }
+
+            // Sort best moves for the active player
+            scoredMoves.sort((a, b) => {
+                return turn === 'w' ? (b.scoreWhite - a.scoreWhite) : (a.scoreWhite - b.scoreWhite);
+            });
+
+            topRecommendedMoves = scoredMoves.slice(0, 3);
+            highlightedRecommendationIndex = 0;
+
+            // Update Eval bar based on best move evaluation
+            const bestEval = topRecommendedMoves.length > 0 ? topRecommendedMoves[0].scoreWhite : evaluateBoard(game);
+            updateEvaluationBar(bestEval);
+
+            renderRecommendationsUI();
+            drawBestMoveArrows();
+        }
+
+        /**
+         * Detect Opening Name based on longest prefix in OPENING_BOOK
+         */
+        function updateDetectedOpeningName(historySan) {
+            const openingTextEl = document.getElementById('openingNameText');
+            if (historySan.length === 0) {
+                openingTextEl.textContent = "Grundstellung – Bereit für 1. Zug";
+                return;
+            }
+
+            for (let len = historySan.length; len >= 1; len--) {
+                const subKey = historySan.slice(0, len).join(' ');
+                if (OPENING_BOOK[subKey] && OPENING_BOOK[subKey].name) {
+                    openingTextEl.textContent = OPENING_BOOK[subKey].name;
+                    return;
+                }
+            }
+        }
+
+        /**
+         * Format centipawn evaluation into readable string (+0.65, -1.20, Matt)
+         */
+        function formatEvalScore(scoreWhite) {
+            if (Math.abs(scoreWhite) >= 90000) {
+                return scoreWhite > 0 ? "Matt (Weiß)" : "Matt (Schwarz)";
+            }
+            const pawns = (scoreWhite / 100).toFixed(2);
+            return scoreWhite > 0 ? `+${pawns}` : `${pawns}`;
+        }
+
+        /**
+         * Update Vertical Evaluation Bar next to the board
+         */
+        function updateEvaluationBar(scoreWhite) {
+            const barWhite = document.getElementById('evalBarWhite');
+            const barBlack = document.getElementById('evalBarBlack');
+            const barText = document.getElementById('evalBarText');
+
+            let whitePercent = 50;
+            if (Math.abs(scoreWhite) >= 90000) {
+                whitePercent = scoreWhite > 0 ? 100 : 0;
+                barText.textContent = "MATT";
+            } else {
+                // Sigmoid-like clamping between -10 and +10 pawns
+                const clampedPawns = Math.max(-10, Math.min(10, scoreWhite / 100));
+                whitePercent = 50 + (clampedPawns * 4.5);
+                const formatted = (scoreWhite / 100).toFixed(1);
+                barText.textContent = scoreWhite > 0 ? `+${formatted}` : formatted;
+            }
+
+            barWhite.style.height = `${whitePercent}%`;
+            barBlack.style.height = `${100 - whitePercent}%`;
+        }
+
+        /***********************************************************************
+         * 7. RENDER VISUAL BOARD, ARROWS, RECOMMENDATIONS & HISTORY
+         ***********************************************************************/
+        function renderAll() {
+            renderBoard();
+            renderPlayerBars();
+            renderQuickLegalMoveChips();
+            renderMoveHistory();
+            runEngineAnalysis();
+        }
+
+        /**
+         * Render 8x8 Chessboard with Coordinates, Pieces, and Legal Move Dots
+         */
+        function renderBoard() {
+            const boardEl = document.getElementById('chessboard');
+            boardEl.innerHTML = '';
+
+            const boardState = game.board();
+            const historyVerbose = game.history({ verbose: true });
+            const lastMove = historyVerbose.length > 0 ? historyVerbose[historyVerbose.length - 1] : null;
+            const inCheck = game.in_check();
+            const turnColor = game.turn();
+
+            // Legal destinations for currently selected square
+            const legalTargets = {};
+            if (selectedSquare) {
+                const movesForSq = game.moves({ square: selectedSquare, verbose: true });
+                movesForSq.forEach(m => {
+                    legalTargets[m.to] = Boolean(m.captured);
+                });
+            }
+
+            const ranks = boardOrientation === 'w' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+            const files = boardOrientation === 'w' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+            const fileNames = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+            ranks.forEach((r, visualRowIdx) => {
+                files.forEach((c, visualColIdx) => {
+                    const sqName = `${fileNames[c]}${8 - r}`;
+                    const isLight = (r + c) % 2 === 0;
+                    const piece = boardState[r][c];
+
+                    const sqDiv = document.createElement('div');
+                    sqDiv.className = `square ${isLight ? 'square-light' : 'square-dark'}`;
+                    sqDiv.dataset.square = sqName;
+                    sqDiv.onclick = () => onSquareClick(sqName);
+
+                    // Highlight selected square
+                    if (selectedSquare === sqName) {
+                        sqDiv.classList.add('square-selected');
+                    } else if (lastMove && (lastMove.from === sqName || lastMove.to === sqName)) {
+                        sqDiv.classList.add('square-last-move');
+                    }
+
+                    // Highlight King in Check
+                    if (inCheck && piece && piece.type === 'k' && piece.color === turnColor) {
+                        sqDiv.classList.add('square-check');
+                    }
+
+                    // Rank coordinate label on left edge
+                    if (visualColIdx === 0) {
+                        const rankLabel = document.createElement('span');
+                        rankLabel.className = `coord-rank ${isLight ? 'text-slate-600' : 'text-slate-300'}`;
+                        rankLabel.textContent = `${8 - r}`;
+                        sqDiv.appendChild(rankLabel);
+                    }
+
+                    // File coordinate label on bottom edge
+                    if (visualRowIdx === 7) {
+                        const fileLabel = document.createElement('span');
+                        fileLabel.className = `coord-file ${isLight ? 'text-slate-600' : 'text-slate-300'}`;
+                        fileLabel.textContent = fileNames[c];
+                        sqDiv.appendChild(fileLabel);
+                    }
+
+                    // Render SVG Chess Piece
+                    if (piece) {
+                        const key = `${piece.color}${piece.type.toUpperCase()}`;
+                        sqDiv.insertAdjacentHTML('beforeend', PIECE_SVGS[key] || '');
+                    }
+
+                    // Render Legal Move Dot or Capture Ring
+                    if (sqName in legalTargets) {
+                        if (legalTargets[sqName] || piece) {
+                            const ring = document.createElement('div');
+                            ring.className = 'legal-capture-ring';
+                            sqDiv.appendChild(ring);
+                        } else {
+                            const dot = document.createElement('div');
+                            dot.className = 'legal-dot';
+                            sqDiv.appendChild(dot);
+                        }
+                    }
+
+                    boardEl.appendChild(sqDiv);
+                });
+            });
+        }
+
+        /**
+         * Convert algebraic square (e.g. "e4") to SVG percentage center coordinates (0..100)
+         */
+        function squareToSvgCoords(square) {
+            const fileCode = square.charCodeAt(0) - 97; // 0..7
+            const rankNum = parseInt(square[1], 10);    // 1..8
+            const rowFromTop = 8 - rankNum;             // 0..7
+
+            const visualCol = boardOrientation === 'w' ? fileCode : (7 - fileCode);
+            const visualRow = boardOrientation === 'w' ? rowFromTop : (7 - rowFromTop);
+
+            return {
+                x: (visualCol + 0.5) * 12.5,
+                y: (visualRow + 0.5) * 12.5
+            };
+        }
+
+        /**
+         * Draw SVG Arrows for the Top Recommended Moves on the Board
+         */
+        function drawBestMoveArrows() {
+            const svg = document.getElementById('arrowOverlay');
+            if (!showArrows || topRecommendedMoves.length === 0 || game.game_over()) {
+                svg.innerHTML = '';
+                return;
+            }
+
+            let defs = `
+                <defs>
+                    <marker id="arrow-emerald" markerWidth="3.8" markerHeight="3.8" refX="2.5" refY="1.9" orient="auto">
+                        <polygon points="0 0, 3.8 1.9, 0 3.8" fill="#10b981" />
+                    </marker>
+                    <marker id="arrow-amber" markerWidth="3.5" markerHeight="3.5" refX="2.4" refY="1.75" orient="auto">
+                        <polygon points="0 0, 3.5 1.75, 0 3.5" fill="#f59e0b" />
+                    </marker>
+                    <marker id="arrow-sky" markerWidth="3.5" markerHeight="3.5" refX="2.4" refY="1.75" orient="auto">
+                        <polygon points="0 0, 3.5 1.75, 0 3.5" fill="#38bdf8" />
+                    </marker>
+                </defs>
+            `;
+
+            let pathsHtml = '';
+
+            // Draw from 3rd to 1st so the #1 best move arrow is always on top
+            const indicesOrder = [2, 1, 0].filter(i => i < topRecommendedMoves.length);
+            // If user hovers a specific recommendation, bring it to the front
+            const sortedOrder = indicesOrder.sort((a, b) => (a === highlightedRecommendationIndex ? 1 : b === highlightedRecommendationIndex ? -1 : 0));
+
+            sortedOrder.forEach(idx => {
+                const move = topRecommendedMoves[idx];
+                const start = squareToSvgCoords(move.from);
+                const end = squareToSvgCoords(move.to);
+
+                const dx = end.x - start.x;
+                const dy = end.y - start.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                if (len === 0) return;
+
+                // Shorten line slightly so arrowhead lands cleanly inside target square
+                const shrink = 3.2;
+                const targetX = end.x - (dx / len) * shrink;
+                const targetY = end.y - (dy / len) * shrink;
+
+                const isPrimary = idx === highlightedRecommendationIndex;
+                let strokeColor = '#10b981';
+                let markerId = 'arrow-emerald';
+                let strokeWidth = isPrimary ? '2.5' : '1.6';
+                let opacity = isPrimary ? '0.95' : '0.45';
+
+                if (idx === 1) {
+                    strokeColor = '#f59e0b';
+                    markerId = 'arrow-amber';
+                } else if (idx === 2) {
+                    strokeColor = '#38bdf8';
+                    markerId = 'arrow-sky';
+                }
+
+                pathsHtml += `
+                    <g opacity="${opacity}" class="best-arrow-line">
+                        <circle cx="${start.x}" cy="${start.y}" r="${isPrimary ? 2.1 : 1.5}" fill="${strokeColor}" />
+                        <line x1="${start.x}" y1="${start.y}" x2="${targetX}" y2="${targetY}"
+                              stroke="${strokeColor}" stroke-width="${strokeWidth}"
+                              stroke-linecap="round" marker-end="url(#${markerId})" />
+                    </g>
+                `;
+            });
+
+            svg.innerHTML = defs + pathsHtml;
+        }
+
+        /**
+         * Highlight a specific arrow when hovering a recommendation card
+         */
+        function highlightArrowIndex(idx) {
+            highlightedRecommendationIndex = idx;
+            drawBestMoveArrows();
+        }
+
+        /**
+         * Render Top 3 Best Move Cards & Coaching Summary
+         */
+        function renderRecommendationsUI() {
+            const listEl = document.getElementById('recommendationsList');
+            const summaryEl = document.getElementById('coachSummaryBox');
+            const pillEl = document.getElementById('turnIndicatorPill');
+            const btnPlayBest = document.getElementById('btnPlayBest');
+            const turn = game.turn();
+
+            if (turn === 'w') {
+                pillEl.textContent = "Empfehlung für Weiß";
+                pillEl.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-white text-slate-900 shadow";
+            } else {
+                pillEl.textContent = "Empfehlung für Schwarz";
+                pillEl.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-amber-300 border border-amber-500/40 shadow";
+            }
+
+            if (game.game_over()) {
+                btnPlayBest.disabled = true;
+                let endMessage = "Partie beendet.";
+                if (game.in_checkmate()) {
+                    const winner = turn === 'w' ? 'Schwarz' : 'Weiß';
+                    endMessage = `Schachmatt! ${winner} gewinnt die Partie.`;
+                } else if (game.in_stalemate()) {
+                    endMessage = "Patt! Unentschieden – keine legalen Züge mehr verfügbar.";
+                } else if (game.in_draw()) {
+                    endMessage = "Remis! Die Partie endet unentschieden.";
+                }
+                summaryEl.innerHTML = `<div class="font-bold text-amber-300 flex items-center gap-2"><i class="fa-solid fa-trophy"></i><span>${endMessage}</span></div>`;
+                listEl.innerHTML = '';
+                return;
+            }
+
+            btnPlayBest.disabled = false;
+
+            if (topRecommendedMoves.length === 0) {
+                summaryEl.textContent = "Keine Züge verfügbar.";
+                listEl.innerHTML = '';
+                return;
+            }
+
+            const best = topRecommendedMoves[0];
+            const sideName = turn === 'w' ? 'Weiß' : 'Schwarz';
+
+            summaryEl.innerHTML = `
+                <div class="flex items-start gap-2.5">
+                    <i class="fa-solid fa-lightbulb text-amber-400 text-base mt-0.5"></i>
+                    <div>
+                        <span class="font-bold text-white">Bester Zug für ${sideName}: <span class="text-emerald-400 font-mono">${best.germanSan}</span> (${best.from} → ${best.to})</span>
+                        <p class="text-xs text-slate-300 mt-0.5">${best.explanation}</p>
+                    </div>
+                </div>
+            `;
+
+            const badgeStyles = [
+                { rank: "1. Wahl (Optimal)", border: "border-emerald-500/60 bg-emerald-950/25 hover:bg-emerald-950/45", badge: "bg-emerald-500 text-slate-950", arrowColor: "text-emerald-400" },
+                { rank: "2. Wahl (Alternative)", border: "border-amber-500/35 bg-slate-950/60 hover:bg-slate-800/80", badge: "bg-amber-500 text-slate-950", arrowColor: "text-amber-400" },
+                { rank: "3. Wahl (Solide)", border: "border-sky-500/35 bg-slate-950/60 hover:bg-slate-800/80", badge: "bg-sky-400 text-slate-950", arrowColor: "text-sky-400" }
+            ];
+
+            listEl.innerHTML = topRecommendedMoves.map((rec, idx) => {
+                const st = badgeStyles[idx] || badgeStyles[2];
+                const scoreStr = formatEvalScore(rec.scoreWhite);
+
+                return `
+                    <div onmouseenter="highlightArrowIndex(${idx})"
+                         onclick="playRecommendedMoveByIndex(${idx})"
+                         class="cursor-pointer rounded-xl border ${st.border} p-3 transition group">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 rounded text-[11px] font-extrabold uppercase ${st.badge}">
+                                    #${idx + 1}
+                                </span>
+                                <span class="font-mono font-extrabold text-base text-white group-hover:text-emerald-300 transition">
+                                    ${rec.germanSan}
+                                </span>
+                                <span class="text-xs font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+                                    ${rec.from} → ${rec.to}
+                                </span>
+                                ${rec.isBook ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">Theorie</span>` : ''}
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-200">
+                                    ${scoreStr}
+                                </span>
+                                <span class="text-xs font-semibold text-emerald-400 opacity-85 group-hover:opacity-100 flex items-center gap-1">
+                                    <span>Ziehen</span>
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-snug pl-1">${rec.explanation}</p>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Render Top and Bottom Player Info Bars (Turn Badge + Captured Pieces + Material Advantage)
+         */
+        function renderPlayerBars() {
+            const turn = game.turn();
+            const topColor = boardOrientation === 'w' ? 'b' : 'w';
+            const bottomColor = boardOrientation === 'w' ? 'w' : 'b';
+
+            document.getElementById('topPlayerLabel').textContent = topColor === 'w' ? 'Weiß' : 'Schwarz';
+            document.getElementById('bottomPlayerLabel').textContent = bottomColor === 'w' ? 'Weiß' : 'Schwarz';
+
+            document.getElementById('topPlayerDot').className = topColor === 'w'
+                ? 'w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-300'
+                : 'w-3.5 h-3.5 rounded-full bg-slate-950 border-2 border-slate-400';
+
+            document.getElementById('bottomPlayerDot').className = bottomColor === 'w'
+                ? 'w-3.5 h-3.5 rounded-full bg-white border-2 border-slate-300'
+                : 'w-3.5 h-3.5 rounded-full bg-slate-950 border-2 border-slate-400';
+
+            const topTurnBadge = document.getElementById('topTurnBadge');
+            const bottomTurnBadge = document.getElementById('bottomTurnBadge');
+
+            if (turn === topColor) {
+                topTurnBadge.classList.remove('hidden');
+                bottomTurnBadge.classList.add('hidden');
+            } else {
+                topTurnBadge.classList.add('hidden');
+                bottomTurnBadge.classList.remove('hidden');
+            }
+
+            // Update Undo button state
+            document.getElementById('btnUndo').disabled = game.history().length === 0;
+
+            // Update input turn label
+            document.getElementById('inputTurnHint').textContent = turn === 'w' ? 'Am Zug: Weiß' : 'Am Zug: Schwarz';
+
+            // Calculate captured pieces & material diff
+            const historyVerbose = game.history({ verbose: true });
+            const capturedByWhite = [];
+            const capturedByBlack = [];
+            const symbolMap = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛' };
+
+            historyVerbose.forEach(m => {
+                if (m.captured) {
+                    if (m.color === 'w') capturedByWhite.push(symbolMap[m.captured] || '');
+                    else capturedByBlack.push(symbolMap[m.captured] || '');
+                }
+            });
+
+            const board = game.board();
+            let whiteMat = 0, blackMat = 0;
+            const simpleValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c];
+                    if (!p) continue;
+                    if (p.color === 'w') whiteMat += simpleValues[p.type];
+                    else blackMat += simpleValues[p.type];
+                }
+            }
+            const matDiff = whiteMat - blackMat;
+
+            const topCapturedEl = document.getElementById('topCaptured');
+            const bottomCapturedEl = document.getElementById('bottomCaptured');
+            const topMatEl = document.getElementById('topMaterialDiff');
+            const bottomMatEl = document.getElementById('bottomMaterialDiff');
+
+            if (topColor === 'w') {
+                topCapturedEl.textContent = capturedByWhite.join('');
+                bottomCapturedEl.textContent = capturedByBlack.join('');
+                topMatEl.textContent = matDiff > 0 ? `+${matDiff}` : '';
+                bottomMatEl.textContent = matDiff < 0 ? `+${Math.abs(matDiff)}` : '';
+            } else {
+                topCapturedEl.textContent = capturedByBlack.join('');
+                bottomCapturedEl.textContent = capturedByWhite.join('');
+                topMatEl.textContent = matDiff < 0 ? `+${Math.abs(matDiff)}` : '';
+                bottomMatEl.textContent = matDiff > 0 ? `+${matDiff}` : '';
+            }
+        }
+
+        /**
+         * Render Quick-Click Legal Move Chips so the user can enter any move in 1 click
+         */
+        function renderQuickLegalMoveChips() {
+            const container = document.getElementById('legalMovesChips');
+            const countEl = document.getElementById('legalMovesCount');
+            const moves = orderMoves(game.moves({ verbose: true }));
+
+            countEl.textContent = `${moves.length} legale Züge`;
+
+            if (moves.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-500 py-1 px-2">Keine legalen Züge (Partie beendet)</span>`;
+                return;
+            }
+
+            container.innerHTML = moves.map(m => {
+                const deSan = toGermanSAN(m.san);
+                const isCapture = Boolean(m.captured);
+                return `
+                    <button onclick="executeMove({from: '${m.from}', to: '${m.to}', promotion: '${m.promotion || 'q'}'})"
+                            class="px-2.5 py-1 rounded-lg font-mono text-xs font-semibold transition border ${
+                                isCapture
+                                    ? 'bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border-amber-500/30'
+                                    : 'bg-slate-800 hover:bg-emerald-600/30 text-slate-200 hover:text-white border-slate-700 hover:border-emerald-500/50'
+                            }">
+                        ${deSan}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Render Move History List (1. e4 e5 ...)
+         */
+        function renderMoveHistory() {
+            const container = document.getElementById('moveHistoryContainer');
+            const history = game.history();
+
+            if (history.length === 0) {
+                container.innerHTML = `<div class="text-slate-500 text-center py-4 font-sans">Noch keine Züge gespielt. Ziehe auf dem Brett oder wähle einen Startzug!</div>`;
+                return;
+            }
+
+            let rowsHtml = '<div class="grid grid-cols-7 gap-y-1 text-xs">';
+            for (let i = 0; i < history.length; i += 2) {
+                const moveNumber = Math.floor(i / 2) + 1;
+                const whiteMove = toGermanSAN(history[i]);
+                const blackMove = history[i + 1] ? toGermanSAN(history[i + 1]) : '';
+
+                rowsHtml += `
+                    <div class="col-span-1 text-slate-500 py-0.5 pl-1">${moveNumber}.</div>
+                    <div class="col-span-3 font-semibold text-slate-200 py-0.5 px-2 rounded ${i === history.length - 1 ? 'bg-emerald-500/20 text-emerald-300' : ''}">${whiteMove}</div>
+                    <div class="col-span-3 font-semibold text-slate-300 py-0.5 px-2 rounded ${i + 1 === history.length - 1 ? 'bg-emerald-500/20 text-emerald-300' : ''}">${blackMove}</div>
+                `;
+            }
+            rowsHtml += '</div>';
+            container.innerHTML = rowsHtml;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        /**
+         * Copy PGN move list to clipboard using execCommand fallback
+         */
+        function copyPgnToClipboard() {
+            const pgn = game.pgn() || "Noch keine Züge gespielt.";
+            const tempInput = document.createElement('textarea');
+            tempInput.value = pgn;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            const label = document.getElementById('copyBtnText');
+            label.textContent = "Kopiert!";
+            setTimeout(() => {
+                label.textContent = "PGN kopieren";
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
