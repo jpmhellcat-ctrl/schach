@@ -55,8 +55,10 @@
         /* Chessboard Layout & Aspect Ratio */
         .chessboard-wrapper {
             position: relative;
+            flex: 1 1 0%;
             width: 100%;
-            max-width: 540px;
+            max-width: 520px;
+            min-width: 260px;
             aspect-ratio: 1 / 1;
             user-select: none;
             -webkit-user-select: none;
@@ -201,13 +203,18 @@
                     <i class="fa-solid fa-chess-knight text-white text-xl"></i>
                 </div>
                 <div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white">Schach-Assistent & Analysator</h1>
                         <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                             Live Coach
                         </span>
+                        <!-- Auto-Save Status Badge -->
+                        <div id="autoSaveBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-800/90 text-slate-300 border border-slate-700 transition-all duration-300" title="Alle Züge und Einstellungen werden automatisch lokal im Browser gespeichert">
+                            <i id="autoSaveIcon" class="fa-solid fa-cloud-arrow-up text-emerald-400"></i>
+                            <span id="autoSaveText">Automatisch lokal gespeichert</span>
+                        </div>
                     </div>
-                    <p class="text-xs text-slate-400">Eigene & gegnerische Züge eintragen • Sofort beste Zugempfehlung mit Pfeilen</p>
+                    <p class="text-xs text-slate-400">Eigene & gegnerische Züge eintragen • Beste Zugempfehlung mit Pfeilen • Lokales Archiv</p>
                 </div>
             </div>
 
@@ -295,25 +302,30 @@
                 </div>
 
                 <!-- Primary Board Action Toolbar -->
-                <div class="w-full max-w-[580px] grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-                    <button onclick="playBestRecommendedMove()" id="btnPlayBest" class="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-lg shadow-emerald-950/60 transition active:scale-95">
+                <div class="w-full max-w-[580px] grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4">
+                    <button onclick="playBestRecommendedMove()" id="btnPlayBest" class="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-lg shadow-emerald-950/60 transition active:scale-95">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
                         <span>Bester Zug</span>
                     </button>
 
-                    <button onclick="undoLastMove()" id="btnUndo" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none">
+                    <button onclick="undoLastMove()" id="btnUndo" class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none">
                         <i class="fa-solid fa-rotate-left"></i>
-                        <span>Zug zurück</span>
+                        <span>Zurück</span>
                     </button>
 
-                    <button onclick="flipBoardOrientation()" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95">
+                    <button onclick="redoNextMove()" id="btnRedo" class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>Vor</span>
+                    </button>
+
+                    <button onclick="flipBoardOrientation()" class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95">
                         <i class="fa-solid fa-retweet text-amber-400"></i>
-                        <span>Brett drehen</span>
+                        <span>Drehen</span>
                     </button>
 
-                    <button onclick="resetGame()" class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-rose-950/60 hover:border-rose-700/60 text-slate-200 border border-slate-700 transition active:scale-95">
+                    <button onclick="resetGame()" class="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-slate-800 hover:bg-rose-950/60 hover:border-rose-700/60 text-slate-200 border border-slate-700 transition active:scale-95">
                         <i class="fa-solid fa-trash-can text-rose-400"></i>
-                        <span>Neues Spiel</span>
+                        <span>Neu</span>
                     </button>
                 </div>
 
@@ -327,6 +339,106 @@
                         <input type="checkbox" id="toggleArrowsCheckbox" checked onchange="toggleArrowsVisibility()" class="rounded bg-slate-800 border-slate-600 text-emerald-500 focus:ring-emerald-500">
                         <span>Pfeile zeigen</span>
                     </label>
+                </div>
+
+                <!-- NEW: Local Saved Games Archive & Backup Panel -->
+                <div class="w-full max-w-[580px] mt-5 pt-4 border-t border-slate-800/90">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-box-archive text-emerald-400"></i>
+                            <h3 class="text-sm font-bold text-white">Gespeicherte Partien (Lokales Archiv)</h3>
+                            <span id="savedGamesCountBadge" class="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-slate-800 text-emerald-400 border border-slate-700">0</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="toggleFenPgnDrawer()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-code text-amber-400"></i>
+                                <span>FEN / PGN & Backup</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Save Current Game Form -->
+                    <form onsubmit="handleSaveGameSlot(event)" class="flex flex-col sm:flex-row gap-2 mb-3">
+                        <div class="relative flex-1">
+                            <input
+                                type="text"
+                                id="saveSlotTitleInput"
+                                placeholder="Partiename (z.B. Gegen Kollege, Londoner System Analyse)..."
+                                maxlength="60"
+                                class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            />
+                        </div>
+                        <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shrink-0 shadow">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            <span>Lokal speichern</span>
+                        </button>
+                    </form>
+
+                    <!-- Status Toast for Archive Actions -->
+                    <div id="archiveToast" class="hidden mb-3 text-xs font-medium px-3 py-2 rounded-xl border"></div>
+
+                    <!-- Collapsible FEN / PGN & File Export/Import Drawer -->
+                    <div id="fenPgnDrawer" class="hidden mb-3 p-3.5 rounded-xl bg-slate-950/90 border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-export text-emerald-400"></i>
+                                <span>FEN / PGN & Datei-Backup (Festplatte)</span>
+                            </span>
+                            <button onclick="toggleFenPgnDrawer()" class="text-slate-400 hover:text-white text-xs">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <!-- Current FEN Display & Load -->
+                        <div class="space-y-1">
+                            <label class="text-[11px] text-slate-400 font-medium">FEN-Stellung (Kopieren oder eigene FEN laden):</label>
+                            <div class="flex gap-1.5">
+                                <input type="text" id="fenInputBox" class="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500" />
+                                <button onclick="copyFenToClipboard()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium shrink-0 transition" title="FEN kopieren">
+                                    <i class="fa-regular fa-copy"></i>
+                                </button>
+                                <button onclick="loadFenFromInput()" class="px-3 py-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-semibold shrink-0 transition">
+                                    FEN laden
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- PGN Import Box -->
+                        <div class="space-y-1">
+                            <label class="text-[11px] text-slate-400 font-medium">PGN-Zugliste (Kopieren oder fremdes PGN einfügen & laden):</label>
+                            <div class="flex gap-1.5">
+                                <input type="text" id="pgnInputBox" placeholder="1. e4 e5 2. Nf3 Nc6 ..." class="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500" />
+                                <button onclick="copyPgnToClipboard()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium shrink-0 transition" title="PGN kopieren">
+                                    <i class="fa-regular fa-copy"></i>
+                                </button>
+                                <button onclick="loadPgnFromInput()" class="px-3 py-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-semibold shrink-0 transition">
+                                    PGN laden
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Local File Download & Upload Buttons -->
+                        <div class="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2">
+                            <button onclick="downloadCurrentGamePgn()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-download text-emerald-400"></i>
+                                <span>Partie als .PGN speichern</span>
+                            </button>
+                            <button onclick="exportAllGamesAsJson()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-file-arrow-down text-amber-400"></i>
+                                <span>Komplettes Archiv (.JSON Backup)</span>
+                            </button>
+                            <label class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
+                                <i class="fa-solid fa-file-arrow-up text-sky-400"></i>
+                                <span>Backup / PGN importieren</span>
+                                <input type="file" id="importFileInput" accept=".json,.pgn,.txt" onchange="handleFileImport(event)" class="hidden" />
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Saved Games List -->
+                    <div id="savedGamesListContainer" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                        <!-- Dynamically populated by JS -->
+                    </div>
                 </div>
             </div>
 
@@ -439,6 +551,10 @@
                     <!-- Move History Table -->
                     <div id="moveHistoryContainer" class="max-h-40 overflow-y-auto rounded-xl bg-slate-950/70 border border-slate-800/80 p-2 text-xs font-mono">
                         <div class="text-slate-500 text-center py-4 font-sans">Noch keine Züge gespielt. Ziehe auf dem Brett oder wähle einen Startzug!</div>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between text-[11px] text-slate-400 px-1">
+                        <span>Tipp: Klicke auf einen Zug im Verlauf, um zu diesem Zeitpunkt zu springen.</span>
+                        <span id="plyCounterText" class="font-mono text-slate-400">Zug 0 / 0</span>
                     </div>
                 </div>
 
@@ -894,8 +1010,11 @@
         }
 
         /***********************************************************************
-         * 4. APPLICATION STATE & INTERACTIVE BOARD CONTROLLER
+         * 4. APPLICATION STATE, LOCALSTORAGE & INTERACTIVE BOARD CONTROLLER
          ***********************************************************************/
+        const STORAGE_KEY_AUTOSAVE = 'schach_assistent_autosave_v1';
+        const STORAGE_KEY_ARCHIVE = 'schach_assistent_archive_v1';
+
         const game = new Chess();
         let boardOrientation = 'w'; // 'w' = White at bottom, 'b' = Black at bottom
         let selectedSquare = null;
@@ -905,26 +1024,137 @@
         let showArrows = true;
         let pendingPromotionMove = null;
 
+        // Undo / Redo & Archive state
+        let redoStack = []; // Stores undone SAN moves for Redo functionality
+        let activeSlotId = null; // Currently loaded archive slot ID (if any)
+        let savedGamesArchive = []; // Array of saved game objects
+        let renamingSlotId = null; // Slot ID currently being renamed inline
+
         /**
-         * Initialize the application on load
+         * Initialize the application on load & restore from LocalStorage
          */
         window.onload = function () {
+            loadArchiveFromStorage();
+            restoreAutoSaveFromStorage();
             renderAll();
         };
 
         /**
-         * Set Engine Search Depth
+         * Save current active session state to LocalStorage immediately
          */
-        function setSearchDepth(depth) {
-            searchDepth = depth;
+        function saveAutoStateToStorage() {
+            try {
+                const payload = {
+                    pgn: game.pgn(),
+                    fen: game.fen(),
+                    historySan: game.history(),
+                    redoStack: redoStack,
+                    boardOrientation: boardOrientation,
+                    searchDepth: searchDepth,
+                    showArrows: showArrows,
+                    activeSlotId: activeSlotId,
+                    titleInput: document.getElementById('saveSlotTitleInput') ? document.getElementById('saveSlotTitleInput').value : '',
+                    savedAt: new Date().toISOString()
+                };
+                localStorage.setItem(STORAGE_KEY_AUTOSAVE, JSON.stringify(payload));
+                updateAutoSaveBadgeUI(payload.savedAt);
+            } catch (err) {
+                console.warn('LocalStorage Auto-Save fehlgeschlagen:', err);
+            }
+        }
+
+        /**
+         * Restore previous session state from LocalStorage on startup
+         */
+        function restoreAutoSaveFromStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_AUTOSAVE);
+                if (!raw) return;
+                const data = JSON.parse(raw);
+
+                if (data.boardOrientation === 'w' || data.boardOrientation === 'b') {
+                    boardOrientation = data.boardOrientation;
+                }
+                if ([2, 3, 4].includes(data.searchDepth)) {
+                    searchDepth = data.searchDepth;
+                    updateDepthButtonsUI(searchDepth);
+                }
+                if (typeof data.showArrows === 'boolean') {
+                    showArrows = data.showArrows;
+                    const cb = document.getElementById('toggleArrowsCheckbox');
+                    if (cb) cb.checked = showArrows;
+                }
+                if (data.activeSlotId) {
+                    activeSlotId = data.activeSlotId;
+                }
+                if (data.titleInput && document.getElementById('saveSlotTitleInput')) {
+                    document.getElementById('saveSlotTitleInput').value = data.titleInput;
+                }
+
+                // Reconstruct game moves or custom FEN
+                game.reset();
+                if (Array.isArray(data.historySan) && data.historySan.length > 0) {
+                    for (const san of data.historySan) {
+                        game.move(san);
+                    }
+                } else if (data.pgn) {
+                    game.load_pgn(data.pgn);
+                } else if (data.fen) {
+                    game.load(data.fen);
+                }
+
+                redoStack = Array.isArray(data.redoStack) ? data.redoStack : [];
+                updateAutoSaveBadgeUI(data.savedAt);
+            } catch (err) {
+                console.warn('Wiederherstellung aus LocalStorage fehlgeschlagen:', err);
+            }
+        }
+
+        /**
+         * Update header Auto-Save badge with timestamp
+         */
+        function updateAutoSaveBadgeUI(isoTimestamp) {
+            const badge = document.getElementById('autoSaveBadge');
+            const textEl = document.getElementById('autoSaveText');
+            const iconEl = document.getElementById('autoSaveIcon');
+            if (!badge || !textEl) return;
+
+            let timeStr = '';
+            if (isoTimestamp) {
+                const d = new Date(isoTimestamp);
+                if (!isNaN(d.getTime())) {
+                    timeStr = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+            }
+
+            textEl.textContent = timeStr ? `Lokal gespeichert (${timeStr})` : 'Automatisch lokal gespeichert';
+            badge.classList.add('border-emerald-500/50', 'bg-emerald-950/40');
+            iconEl.className = 'fa-solid fa-check-circle text-emerald-400';
+
+            setTimeout(() => {
+                badge.classList.remove('border-emerald-500/50', 'bg-emerald-950/40');
+            }, 900);
+        }
+
+        function updateDepthButtonsUI(depth) {
             [2, 3, 4].forEach(d => {
                 const btn = document.getElementById(`depthBtn${d}`);
+                if (!btn) return;
                 if (d === depth) {
                     btn.className = "px-2.5 py-1 rounded-md font-semibold bg-emerald-600 text-white shadow";
                 } else {
                     btn.className = "px-2.5 py-1 rounded-md font-medium text-slate-300 hover:text-white transition";
                 }
             });
+        }
+
+        /**
+         * Set Engine Search Depth
+         */
+        function setSearchDepth(depth) {
+            searchDepth = depth;
+            updateDepthButtonsUI(depth);
+            saveAutoStateToStorage();
             runEngineAnalysis();
         }
 
@@ -933,6 +1163,7 @@
          */
         function flipBoardOrientation() {
             boardOrientation = boardOrientation === 'w' ? 'b' : 'w';
+            saveAutoStateToStorage();
             renderBoard();
             renderPlayerBars();
             drawBestMoveArrows();
@@ -944,15 +1175,52 @@
         function toggleArrowsVisibility() {
             const cb = document.getElementById('toggleArrowsCheckbox');
             showArrows = cb.checked;
+            saveAutoStateToStorage();
             drawBestMoveArrows();
         }
 
         /**
-         * Undo the last half-move
+         * Undo the last half-move (and push onto redoStack)
          */
         function undoLastMove() {
             if (game.history().length === 0) return;
-            game.undo();
+            const undone = game.undo();
+            if (undone) {
+                redoStack.push(undone.san);
+            }
+            selectedSquare = null;
+            hideInputFeedback();
+            renderAll();
+        }
+
+        /**
+         * Redo the previously undone half-move
+         */
+        function redoNextMove() {
+            if (redoStack.length === 0) return;
+            const nextSan = redoStack.pop();
+            const res = game.move(nextSan);
+            if (!res) {
+                redoStack = [];
+            }
+            selectedSquare = null;
+            hideInputFeedback();
+            renderAll();
+        }
+
+        /**
+         * Jump to a specific half-move (ply) in the current game + redo timeline
+         */
+        function jumpToPly(targetPly) {
+            const currentHistory = game.history();
+            const fullTimeline = currentHistory.concat([...redoStack].reverse());
+            if (targetPly < 0 || targetPly > fullTimeline.length) return;
+
+            game.reset();
+            for (let i = 0; i < targetPly; i++) {
+                game.move(fullTimeline[i]);
+            }
+            redoStack = fullTimeline.slice(targetPly).reverse();
             selectedSquare = null;
             hideInputFeedback();
             renderAll();
@@ -963,6 +1231,8 @@
          */
         function resetGame() {
             game.reset();
+            redoStack = [];
+            activeSlotId = null;
             selectedSquare = null;
             hideInputFeedback();
             renderAll();
@@ -973,6 +1243,7 @@
          */
         function loadOpeningPreset(sanMovesArray) {
             game.reset();
+            redoStack = [];
             selectedSquare = null;
             for (const san of sanMovesArray) {
                 game.move(san);
@@ -1008,11 +1279,12 @@
         }
 
         /**
-         * Execute move safely and refresh UI + Engine Analysis
+         * Execute move safely, clear redoStack, auto-save, and refresh UI + Engine Analysis
          */
         function executeMove(moveSpec) {
             const result = game.move(moveSpec);
             if (result) {
+                redoStack = [];
                 selectedSquare = null;
                 hideInputFeedback();
                 renderAll();
@@ -1347,11 +1619,14 @@
          * 7. RENDER VISUAL BOARD, ARROWS, RECOMMENDATIONS & HISTORY
          ***********************************************************************/
         function renderAll() {
+            saveAutoStateToStorage();
             renderBoard();
             renderPlayerBars();
             renderQuickLegalMoveChips();
             renderMoveHistory();
             runEngineAnalysis();
+            updateFenPgnInputs();
+            renderSavedGamesArchive();
         }
 
         /**
@@ -1670,8 +1945,12 @@
                 bottomTurnBadge.classList.remove('hidden');
             }
 
-            // Update Undo button state
+            // Update Undo & Redo button states
             document.getElementById('btnUndo').disabled = game.history().length === 0;
+            const btnRedo = document.getElementById('btnRedo');
+            if (btnRedo) {
+                btnRedo.disabled = redoStack.length === 0;
+            }
 
             // Update input turn label
             document.getElementById('inputTurnHint').textContent = turn === 'w' ? 'Am Zug: Weiß' : 'Am Zug: Schwarz';
@@ -1752,27 +2031,56 @@
         }
 
         /**
-         * Render Move History List (1. e4 e5 ...)
+         * Render Move History List (1. e4 e5 ...) including future Redo moves and clickable ply jump
          */
         function renderMoveHistory() {
             const container = document.getElementById('moveHistoryContainer');
-            const history = game.history();
+            const plyCounterEl = document.getElementById('plyCounterText');
+            const activeHistory = game.history();
+            const fullTimeline = activeHistory.concat([...redoStack].reverse());
+            const currentPly = activeHistory.length;
 
-            if (history.length === 0) {
+            if (plyCounterEl) {
+                plyCounterEl.textContent = `Halbzug ${currentPly} / ${fullTimeline.length}`;
+            }
+
+            if (fullTimeline.length === 0) {
                 container.innerHTML = `<div class="text-slate-500 text-center py-4 font-sans">Noch keine Züge gespielt. Ziehe auf dem Brett oder wähle einen Startzug!</div>`;
                 return;
             }
 
             let rowsHtml = '<div class="grid grid-cols-7 gap-y-1 text-xs">';
-            for (let i = 0; i < history.length; i += 2) {
+            for (let i = 0; i < fullTimeline.length; i += 2) {
                 const moveNumber = Math.floor(i / 2) + 1;
-                const whiteMove = toGermanSAN(history[i]);
-                const blackMove = history[i + 1] ? toGermanSAN(history[i + 1]) : '';
+                const whitePly = i + 1;
+                const blackPly = i + 2;
+
+                const whiteMove = toGermanSAN(fullTimeline[i]);
+                const blackMove = fullTimeline[i + 1] ? toGermanSAN(fullTimeline[i + 1]) : '';
+
+                const isWhiteCurrent = currentPly === whitePly;
+                const isBlackCurrent = currentPly === blackPly;
+                const isWhiteFuture = whitePly > currentPly;
+                const isBlackFuture = blackPly > currentPly;
 
                 rowsHtml += `
                     <div class="col-span-1 text-slate-500 py-0.5 pl-1">${moveNumber}.</div>
-                    <div class="col-span-3 font-semibold text-slate-200 py-0.5 px-2 rounded ${i === history.length - 1 ? 'bg-emerald-500/20 text-emerald-300' : ''}">${whiteMove}</div>
-                    <div class="col-span-3 font-semibold text-slate-300 py-0.5 px-2 rounded ${i + 1 === history.length - 1 ? 'bg-emerald-500/20 text-emerald-300' : ''}">${blackMove}</div>
+                    <button onclick="jumpToPly(${whitePly})" class="col-span-3 text-left font-semibold py-0.5 px-2 rounded transition ${
+                        isWhiteCurrent
+                            ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40'
+                            : isWhiteFuture
+                                ? 'text-slate-500 hover:text-slate-300 italic'
+                                : 'text-slate-200 hover:bg-slate-800'
+                    }">${whiteMove}</button>
+                    ${blackMove ? `
+                        <button onclick="jumpToPly(${blackPly})" class="col-span-3 text-left font-semibold py-0.5 px-2 rounded transition ${
+                            isBlackCurrent
+                                ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40'
+                                : isBlackFuture
+                                    ? 'text-slate-500 hover:text-slate-300 italic'
+                                    : 'text-slate-300 hover:bg-slate-800'
+                        }">${blackMove}</button>
+                    ` : '<div class="col-span-3"></div>'}
                 `;
             }
             rowsHtml += '</div>';
@@ -1793,10 +2101,409 @@
             document.body.removeChild(tempInput);
 
             const label = document.getElementById('copyBtnText');
-            label.textContent = "Kopiert!";
+            if (label) {
+                label.textContent = "Kopiert!";
+                setTimeout(() => {
+                    label.textContent = "PGN kopieren";
+                }, 2000);
+            }
+            showArchiveToast("PGN-Zugliste in die Zwischenablage kopiert!", false);
+        }
+
+        /***********************************************************************
+         * 8. LOCAL GAMES ARCHIVE (SAVE SLOTS, LOAD, RENAME, DELETE, EXPORT/IMPORT)
+         ***********************************************************************/
+        function loadArchiveFromStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY_ARCHIVE);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) {
+                        savedGamesArchive = parsed;
+                    }
+                }
+            } catch (e) {
+                console.warn('Fehler beim Laden des Partien-Archivs:', e);
+                savedGamesArchive = [];
+            }
+        }
+
+        function persistArchiveToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY_ARCHIVE, JSON.stringify(savedGamesArchive));
+            } catch (e) {
+                console.warn('Fehler beim Speichern des Partien-Archivs:', e);
+            }
+        }
+
+        function handleSaveGameSlot(e) {
+            e.preventDefault();
+            const inputEl = document.getElementById('saveSlotTitleInput');
+            let title = inputEl.value.trim();
+
+            const openingLabel = document.getElementById('openingNameText')
+                ? document.getElementById('openingNameText').textContent
+                : 'Schachpartie';
+
+            if (!title) {
+                const dateShort = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+                title = `${openingLabel.split('–')[0].trim()} (${dateShort})`;
+            }
+
+            const historySan = game.history();
+            const evalScore = topRecommendedMoves.length > 0
+                ? formatEvalScore(topRecommendedMoves[0].scoreWhite)
+                : formatEvalScore(evaluateBoard(game));
+
+            const newSlot = {
+                id: 'game_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                title: title,
+                opening: openingLabel,
+                pgn: game.pgn(),
+                fen: game.fen(),
+                historySan: historySan,
+                redoStack: [...redoStack],
+                boardOrientation: boardOrientation,
+                evalScore: evalScore,
+                movesCount: historySan.length,
+                updatedAt: new Date().toISOString()
+            };
+
+            savedGamesArchive.unshift(newSlot);
+            activeSlotId = newSlot.id;
+            persistArchiveToStorage();
+            saveAutoStateToStorage();
+            renderSavedGamesArchive();
+            showArchiveToast(`Partie "${title}" lokal im Archiv gespeichert!`, false);
+        }
+
+        function overwriteSavedSlot(slotId) {
+            const idx = savedGamesArchive.findIndex(g => g.id === slotId);
+            if (idx === -1) return;
+
+            const openingLabel = document.getElementById('openingNameText')
+                ? document.getElementById('openingNameText').textContent
+                : 'Schachpartie';
+            const historySan = game.history();
+            const evalScore = topRecommendedMoves.length > 0
+                ? formatEvalScore(topRecommendedMoves[0].scoreWhite)
+                : formatEvalScore(evaluateBoard(game));
+
+            savedGamesArchive[idx] = {
+                ...savedGamesArchive[idx],
+                opening: openingLabel,
+                pgn: game.pgn(),
+                fen: game.fen(),
+                historySan: historySan,
+                redoStack: [...redoStack],
+                boardOrientation: boardOrientation,
+                evalScore: evalScore,
+                movesCount: historySan.length,
+                updatedAt: new Date().toISOString()
+            };
+
+            activeSlotId = slotId;
+            persistArchiveToStorage();
+            saveAutoStateToStorage();
+            renderSavedGamesArchive();
+            showArchiveToast(`Speicherstand "${savedGamesArchive[idx].title}" mit aktuellem Brett aktualisiert!`, false);
+        }
+
+        function loadSavedSlot(slotId) {
+            const slot = savedGamesArchive.find(g => g.id === slotId);
+            if (!slot) return;
+
+            game.reset();
+            if (Array.isArray(slot.historySan) && slot.historySan.length > 0) {
+                for (const san of slot.historySan) {
+                    game.move(san);
+                }
+            } else if (slot.pgn) {
+                game.load_pgn(slot.pgn);
+            } else if (slot.fen) {
+                game.load(slot.fen);
+            }
+
+            redoStack = Array.isArray(slot.redoStack) ? [...slot.redoStack] : [];
+            if (slot.boardOrientation === 'w' || slot.boardOrientation === 'b') {
+                boardOrientation = slot.boardOrientation;
+            }
+            activeSlotId = slot.id;
+            selectedSquare = null;
+
+            const titleInput = document.getElementById('saveSlotTitleInput');
+            if (titleInput) titleInput.value = slot.title;
+
+            renderAll();
+            showArchiveToast(`Partie "${slot.title}" geladen.`, false);
+        }
+
+        function startRenameSlot(slotId) {
+            renamingSlotId = slotId;
+            renderSavedGamesArchive();
             setTimeout(() => {
-                label.textContent = "PGN kopieren";
-            }, 2000);
+                const input = document.getElementById(`renameInput_${slotId}`);
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            }, 30);
+        }
+
+        function confirmRenameSlot(slotId) {
+            const input = document.getElementById(`renameInput_${slotId}`);
+            if (!input) return;
+            const newTitle = input.value.trim();
+            if (newTitle) {
+                const slot = savedGamesArchive.find(g => g.id === slotId);
+                if (slot) {
+                    slot.title = newTitle;
+                    slot.updatedAt = new Date().toISOString();
+                    persistArchiveToStorage();
+                }
+            }
+            renamingSlotId = null;
+            renderSavedGamesArchive();
+        }
+
+        function deleteSavedSlot(slotId) {
+            const idx = savedGamesArchive.findIndex(g => g.id === slotId);
+            if (idx === -1) return;
+            const removedTitle = savedGamesArchive[idx].title;
+            savedGamesArchive.splice(idx, 1);
+            if (activeSlotId === slotId) activeSlotId = null;
+            persistArchiveToStorage();
+            saveAutoStateToStorage();
+            renderSavedGamesArchive();
+            showArchiveToast(`Partie "${removedTitle}" aus dem lokalen Speicher gelöscht.`, false);
+        }
+
+        function renderSavedGamesArchive() {
+            const listEl = document.getElementById('savedGamesListContainer');
+            const badgeEl = document.getElementById('savedGamesCountBadge');
+            if (!listEl || !badgeEl) return;
+
+            badgeEl.textContent = `${savedGamesArchive.length}`;
+
+            if (savedGamesArchive.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-4 px-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs text-slate-400">
+                        Noch keine benannten Partien im Archiv gespeichert. Deine aktuelle Partie auf dem Brett wird aber bereits <strong class="text-emerald-400">automatisch im Hintergrund</strong> gesichert!
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = savedGamesArchive.map(slot => {
+                const isActive = slot.id === activeSlotId;
+                const d = new Date(slot.updatedAt);
+                const dateFormatted = !isNaN(d.getTime())
+                    ? d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+                    : '';
+
+                const isRenaming = renamingSlotId === slot.id;
+
+                return `
+                    <div class="rounded-xl border ${isActive ? 'border-emerald-500/60 bg-emerald-950/20' : 'border-slate-800 bg-slate-950/70 hover:border-slate-700'} p-3 transition flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div class="min-w-0 flex-1">
+                            ${isRenaming ? `
+                                <div class="flex items-center gap-1.5">
+                                    <input type="text" id="renameInput_${slot.id}" value="${slot.title.replace(/"/g, '&quot;')}"
+                                           onkeydown="if(event.key==='Enter'){confirmRenameSlot('${slot.id}');}else if(event.key==='Escape'){renamingSlotId=null;renderSavedGamesArchive();}"
+                                           class="px-2.5 py-1 rounded-lg bg-slate-900 border border-emerald-500 text-xs text-white focus:outline-none w-full max-w-xs" />
+                                    <button onclick="confirmRenameSlot('${slot.id}')" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-semibold">OK</button>
+                                </div>
+                            ` : `
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-bold text-xs sm:text-sm text-white truncate">${slot.title}</span>
+                                    ${isActive ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Aktiv</span>` : ''}
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700">${slot.movesCount || 0} Halbzüge</span>
+                                    ${slot.evalScore ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-900 text-amber-300 border border-slate-800">Eval: ${slot.evalScore}</span>` : ''}
+                                </div>
+                            `}
+                            <div class="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                                <span class="truncate">${slot.opening || 'Standardpartie'}</span>
+                                <span>•</span>
+                                <span class="font-mono text-slate-500">${dateFormatted}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button onclick="loadSavedSlot('${slot.id}')" class="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 text-xs font-semibold transition flex items-center gap-1" title="Diese Partie auf das Brett laden">
+                                <i class="fa-solid fa-folder-open"></i>
+                                <span>Laden</span>
+                            </button>
+                            <button onclick="overwriteSavedSlot('${slot.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs transition" title="Mit aktueller Brettstellung überschreiben">
+                                <i class="fa-solid fa-rotate"></i>
+                            </button>
+                            <button onclick="startRenameSlot('${slot.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs transition" title="Umbenennen">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button onclick="deleteSavedSlot('${slot.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/70 text-rose-400 border border-slate-700 hover:border-rose-700/60 text-xs transition" title="Löschen">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleFenPgnDrawer() {
+            const drawer = document.getElementById('fenPgnDrawer');
+            if (!drawer) return;
+            drawer.classList.toggle('hidden');
+            updateFenPgnInputs();
+        }
+
+        function updateFenPgnInputs() {
+            const fenBox = document.getElementById('fenInputBox');
+            const pgnBox = document.getElementById('pgnInputBox');
+            if (fenBox && document.activeElement !== fenBox) {
+                fenBox.value = game.fen();
+            }
+            if (pgnBox && document.activeElement !== pgnBox) {
+                pgnBox.value = game.pgn();
+            }
+        }
+
+        function copyFenToClipboard() {
+            const fen = game.fen();
+            const tempInput = document.createElement('textarea');
+            tempInput.value = fen;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showArchiveToast("FEN-Stellung in die Zwischenablage kopiert!", false);
+        }
+
+        function loadFenFromInput() {
+            const fenBox = document.getElementById('fenInputBox');
+            if (!fenBox || !fenBox.value.trim()) return;
+            const loaded = game.load(fenBox.value.trim());
+            if (loaded) {
+                redoStack = [];
+                selectedSquare = null;
+                renderAll();
+                showArchiveToast("FEN-Stellung erfolgreich auf das Brett geladen!", false);
+            } else {
+                showArchiveToast("Ungültiger FEN-String. Bitte überprüfe das Format.", true);
+            }
+        }
+
+        function loadPgnFromInput() {
+            const pgnBox = document.getElementById('pgnInputBox');
+            if (!pgnBox || !pgnBox.value.trim()) return;
+            const loaded = game.load_pgn(pgnBox.value.trim());
+            if (loaded) {
+                redoStack = [];
+                selectedSquare = null;
+                renderAll();
+                showArchiveToast("PGN-Partie erfolgreich geladen!", false);
+            } else {
+                showArchiveToast("PGN konnte nicht gelesen werden. Bitte prüfe die Notation.", true);
+            }
+        }
+
+        function downloadCurrentGamePgn() {
+            const pgnContent = game.pgn() || `[FEN "${game.fen()}"]`;
+            const blob = new Blob([pgnContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `schachpartie_${new Date().toISOString().slice(0, 10)}.pgn`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showArchiveToast("PGN-Datei heruntergeladen!", false);
+        }
+
+        function exportAllGamesAsJson() {
+            const backupData = {
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                currentSession: {
+                    pgn: game.pgn(),
+                    fen: game.fen(),
+                    historySan: game.history(),
+                    redoStack: redoStack,
+                    boardOrientation: boardOrientation
+                },
+                savedGamesArchive: savedGamesArchive
+            };
+            const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `schach_archiv_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showArchiveToast("Komplettes JSON-Backup auf deiner Festplatte gespeichert!", false);
+        }
+
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const content = (e.target.result || '').trim();
+                if (!content) return;
+
+                // Try parsing as JSON backup first
+                if (file.name.endsWith('.json') || content.startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(content);
+                        if (Array.isArray(parsed.savedGamesArchive)) {
+                            savedGamesArchive = parsed.savedGamesArchive;
+                            persistArchiveToStorage();
+                        }
+                        if (parsed.currentSession && Array.isArray(parsed.currentSession.historySan)) {
+                            game.reset();
+                            for (const san of parsed.currentSession.historySan) {
+                                game.move(san);
+                            }
+                            redoStack = Array.isArray(parsed.currentSession.redoStack) ? parsed.currentSession.redoStack : [];
+                        }
+                        renderAll();
+                        showArchiveToast("JSON-Backup erfolgreich importiert und wiederhergestellt!", false);
+                        return;
+                    } catch (err) {
+                        showArchiveToast("Fehler beim Lesen der JSON-Backup-Datei.", true);
+                        return;
+                    }
+                }
+
+                // Otherwise try loading as PGN text
+                if (game.load_pgn(content)) {
+                    redoStack = [];
+                    selectedSquare = null;
+                    renderAll();
+                    showArchiveToast(`PGN-Datei "${file.name}" erfolgreich geladen!`, false);
+                } else {
+                    showArchiveToast("Datei konnte weder als JSON-Backup noch als gültiges PGN geladen werden.", true);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function showArchiveToast(message, isError) {
+            const toast = document.getElementById('archiveToast');
+            if (!toast) return;
+            toast.textContent = message;
+            toast.classList.remove('hidden', 'bg-rose-950/90', 'text-rose-300', 'border-rose-700', 'bg-emerald-950/90', 'text-emerald-300', 'border-emerald-700');
+            if (isError) {
+                toast.classList.add('bg-rose-950/90', 'text-rose-300', 'border-rose-700');
+            } else {
+                toast.classList.add('bg-emerald-950/90', 'text-emerald-300', 'border-emerald-700');
+            }
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3200);
         }
     </script>
 </body>
